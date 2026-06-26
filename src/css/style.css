@@ -1,14 +1,44 @@
-html, body {
+/* Stiluri custom pentru efectul Antigravity (fără fricțiune pe mobil) */
+@import url('https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css');
+
+body {
     -webkit-tap-highlight-color: transparent;
-    overscroll-behavior-y: contain;
+    user-select: none;
 }
 
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
+/* Efect de apăsare fizică pe butoane (tactile feedback) */
+.card-gestiune, .card-locatie, .card-produs {
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
-input[type="number"] {
-    -moz-appearance: textfield;
+.card-gestiune:active, .card-locatie:active, .card-produs:active {
+    transform: scale(0.96);
+    filter: brightness(0.9);
+}
+
+/* Scroll fluid pentru liste lungi de produse */
+#grid-produse {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Stil pentru cartonașele de produse cu imagine de fundal */
+.imagine-produs-bg {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* Input-uri optimizate pentru degete mari */
+input, select, button {
+    font-size: 16px !important; /* Previne zoom-ul automat enervant pe iPhone */
+}
+
+/* Animație simplă de tranziție între ecrane */
+.fade-in {
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

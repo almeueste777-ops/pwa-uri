@@ -83,6 +83,9 @@ function ajusteazaStoc(gestiune, locatie, produsId, delta) {
 function afiseazaEcran(nume) {
     Object.values(ecrane).forEach(el => el.classList.add('hidden'));
     ecrane[nume].classList.remove('hidden');
+    ecrane[nume].classList.remove('fade-in');
+    void ecrane[nume].offsetWidth;
+    ecrane[nume].classList.add('fade-in');
     elBtnInapoi.classList.toggle('hidden', nume === 'gestiuni');
 }
 
@@ -169,7 +172,7 @@ function randeazaProduse() {
         const card = document.createElement('button');
         card.className = 'card-produs bg-gray-800 border border-gray-700 rounded-xl p-3 text-left shadow-md active:scale-95 transition transform hover:border-blue-500';
         card.innerHTML = `
-            <div class="w-full h-20 bg-gray-700 rounded-lg mb-2 bg-cover bg-center" style="background-image: ${produs.poza ? `url('${produs.poza}')` : 'none'}"></div>
+            <div class="imagine-produs-bg w-full h-20 bg-gray-700 rounded-lg mb-2" style="background-image: ${produs.poza ? `url('${produs.poza}')` : 'none'}"></div>
             <p class="font-semibold text-sm truncate">${produs.denumire}</p>
             <p class="text-xs text-gray-400 truncate">${produs.marca || ''}</p>
             <p class="text-xs text-blue-400 font-semibold mt-1">${stoc} Buc</p>
