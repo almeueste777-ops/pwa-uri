@@ -1,27 +1,29 @@
-// Baza de date cu locațiile exacte ale celor două gestiuni
+// Baza de date cu locațiile exacte ale celor două gestiuni, fiecare cu temă și gradient propriu
 const STRUCTURA_GESTIUNI = {
     1: {
         nume: 'MĂNĂSTIRE',
+        tema: 'tema-manastire', // Design clasic, rotunjit, umbre grele
         locatii: [
-            'Hala alimente',
-            'Produse de curățenie',
-            'Lăzi frigorifice',
-            'Container frigorific',
-            'Depozit haine',
-            'Magazin bisericesc',
-            'Veșmântărie',
-            'Magazie scule'
+            { nume: 'Hala alimente', gradient: 'from-orange-600 to-amber-700' },
+            { nume: 'Produse de curățenie', gradient: 'from-teal-600 to-cyan-800' },
+            { nume: 'Lăzi frigorifice', gradient: 'from-blue-700 to-indigo-900' },
+            { nume: 'Container frigorific', gradient: 'from-slate-600 to-gray-800' },
+            { nume: 'Depozit haine', gradient: 'from-purple-600 to-fuchsia-800' },
+            { nume: 'Magazin bisericesc', gradient: 'from-yellow-600 to-amber-600 text-gray-900' },
+            { nume: 'Veșmântărie', gradient: 'from-rose-700 to-pink-900' },
+            { nume: 'Magazie scule', gradient: 'from-stone-600 to-stone-800' }
         ]
     },
     2: {
         nume: 'CRPV',
+        tema: 'tema-crpv', // Design tech, margini ascuțite, glow
         locatii: [
-            'Magazie mică',
-            'Magazie Dulciuri',
-            'Lăzi frigorifice',
-            'Cameră de frig',
-            'Medicamente',
-            'Beci alimente'
+            { nume: 'Magazie mică', gradient: 'from-emerald-400 to-teal-600' },
+            { nume: 'Magazie Dulciuri', gradient: 'from-pink-500 to-rose-500' },
+            { nume: 'Lăzi frigorifice', gradient: 'from-sky-400 to-blue-600' },
+            { nume: 'Cameră de frig', gradient: 'from-cyan-400 to-cyan-700' },
+            { nume: 'Medicamente', gradient: 'from-red-500 to-red-700' },
+            { nume: 'Beci alimente', gradient: 'from-amber-400 to-orange-500' }
         ]
     }
 };
@@ -41,11 +43,13 @@ export function comutaEcran(idEcran) {
         }
     });
 
-    // Control buton înapoi
     const btnInapoi = document.getElementById('btn-inapoi');
+    const bodyApp = document.body;
+
     if (idEcran === 'ecran-gestiuni') {
         btnInapoi.classList.add('hidden');
         document.getElementById('titlu-aplicatie').innerText = 'Antigravity Gestiune';
+        bodyApp.className = 'bg-gray-900 text-gray-100 font-sans'; // Reset temă
     } else {
         btnInapoi.classList.remove('hidden');
     }
@@ -57,13 +61,27 @@ export function randeazaLocatii(gestiuneId) {
     const dateGestiune = STRUCTURA_GESTIUNI[gestiuneId];
 
     document.getElementById('titlu-aplicatie').innerText = dateGestiune.nume;
-    container.innerHTML = ''; // Curăță ecranul anterior
+
+    // Aplicăm tema globală pe body pentru a schimba tot feeling-ul aplicației
+    document.body.className = `bg-gray-900 text-gray-100 font-sans ${dateGestiune.tema}`;
+
+    container.innerHTML = '';
 
     dateGestiune.locatii.forEach(locatie => {
         const buton = document.createElement('button');
-        buton.className = 'card-locatie bg-gray-800 border border-gray-700 p-6 rounded-xl shadow-lg text-lg font-semibold text-center text-gray-200 flex items-center justify-center min-h-[100px]';
-        buton.innerText = locatie;
-        buton.dataset.locatie = locatie;
+
+        // Tailwind clasic + clasele dinamice de gradient + clasa de bază pentru formă
+        buton.className = `card-locatie bg-gradient-to-br ${locatie.gradient} p-4 shadow-lg font-bold text-center flex items-center justify-center min-h-[110px] text-white`;
+
+        // Ajustăm forma în funcție de temă, direct din JS
+        if (dateGestiune.tema === 'tema-manastire') {
+            buton.classList.add('rounded-3xl', 'border-2', 'border-white/10', 'shadow-[0_10px_20px_rgba(0,0,0,0.4)]');
+        } else {
+            buton.classList.add('rounded-lg', 'border-l-4', 'border-white/30', 'shadow-[0_0_15px_rgba(255,255,255,0.1)]');
+        }
+
+        buton.innerText = locatie.nume;
+        buton.dataset.locatie = locatie.nume;
         buton.dataset.gestiuneId = gestiuneId;
 
         container.appendChild(buton);
@@ -72,14 +90,14 @@ export function randeazaLocatii(gestiuneId) {
     comutaEcran('ecran-locatii');
 }
 
-// Randează produsele dintr-o anumită locație (Mockup vizual până legăm DB-ul mare)
+// Randează produsele dintr-o anumită locație
 export function randeazaProduse(gestiuneNume, locatieNume, produseInstanta = []) {
     document.getElementById('titlu-aplicatie').innerText = `${gestiuneNume} → ${locatieNume}`;
     const grid = document.getElementById('grid-produse');
     grid.innerHTML = '';
 
     if (produseInstanta.length === 0) {
-        grid.innerHTML = `<div class="col-span-2 text-center py-8 text-gray-500 text-sm">Niciun produs adăugat în această cameră.</div>`;
+        grid.innerHTML = `<div class="col-span-2 text-center py-10 text-gray-400 font-medium">Niciun produs aici.<br>E timpul să adaugi ceva.</div>`;
         comutaEcran('ecran-produse');
         return;
     }

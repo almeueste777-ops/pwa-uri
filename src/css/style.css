@@ -42,3 +42,44 @@ input, select, button {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* =========================================
+   TEMATICA SPECIFICĂ PE GESTIUNI
+   ========================================= */
+
+/* TEMA MĂNĂSTIRE: Linii moi, butoane ca niște pietre prețioase, eleganță */
+body.tema-manastire header {
+    background: linear-gradient(to right, #1f2937, #111827);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+body.tema-manastire .card-locatie {
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+    letter-spacing: 0.5px;
+}
+
+body.tema-manastire .card-locatie:active {
+    transform: scale(0.92) translateY(4px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+}
+
+/* TEMA CRPV: Aspect industrial, margini dure, utilitarist, digital */
+body.tema-crpv header {
+    background: #0f172a;
+    border-bottom: 2px solid #38bdf8;
+    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.1);
+}
+
+body.tema-crpv .card-locatie {
+    transition: all 0.1s ease-out;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.9rem;
+}
+
+body.tema-crpv .card-locatie:active {
+    transform: scale(0.97);
+    filter: brightness(1.2);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+}

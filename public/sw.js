@@ -1,4 +1,4 @@
-const CACHE_NAME = 'antigravity-wms-v2';
+const CACHE_NAME = 'antigravity-wms-v3';
 const ASSETS_DE_CACHE = [
     '/index.html',
     '/src/css/style.css',
