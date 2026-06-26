@@ -4,6 +4,10 @@ const ASSETS_DE_CACHE = [
     '/src/css/style.css',
     '/src/js/app.js',
     '/public/manifest.json',
+    '/public/icons/icon-192.png',
+    '/public/icons/icon-512.png',
+    '/public/icons/icon-192-maskable.png',
+    '/public/icons/icon-512-maskable.png',
 ];
 
 self.addEventListener('install', event => {
