@@ -1,7 +1,8 @@
-const CACHE_NAME = 'antigravity-wms-v3';
+const CACHE_NAME = 'antigravity-wms-v4';
 const ASSETS_DE_CACHE = [
     '/index.html',
     '/src/css/style.css',
+    '/src/css/tailwind.generated.css',
     '/src/js/app.js',
     '/src/js/ui.js',
     '/public/manifest.json',
@@ -40,7 +41,15 @@ self.addEventListener('fetch', event => {
                     caches.open(CACHE_NAME).then(cache => cache.put(event.request, clona));
                     return raspunsRetea;
                 })
-                .catch(() => caches.match('/index.html'));
+                .catch(() => {
+                    // Doar pentru navigare (schimbare de pagină) e corect să servim
+                    // index.html ca fallback offline; pentru CSS/JS/imagini ar produce
+                    // un răspuns HTML cu content-type greșit, deci lăsăm cererea să eșueze.
+                    if (event.request.mode === 'navigate') {
+                        return caches.match('/index.html');
+                    }
+                    return Promise.reject(new Error('offline și fără răspuns în cache'));
+                });
         })
     );
 });

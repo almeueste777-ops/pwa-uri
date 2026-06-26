@@ -30,6 +30,18 @@ const STRUCTURA_GESTIUNI = {
 
 export { STRUCTURA_GESTIUNI };
 
+// Imagine de rezervă inline (SVG, fără apel de rețea) pentru produsele fără poză.
+const IMAGINE_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150">' +
+    '<rect width="150" height="150" fill="#1f2937"/>' +
+    '<text x="75" y="80" font-family="sans-serif" font-size="14" fill="#9ca3af" text-anchor="middle">Fără poză</text>' +
+    '</svg>'
+);
+
+export function esteUrlImagineValid(url) {
+    return /^(https?:|data:image\/)/i.test(url);
+}
+
 // Navigare între ecrane
 export function comutaEcran(idEcran) {
     const ecrane = ['ecran-gestiuni', 'ecran-locatii', 'ecran-produse', 'ecran-operatie'];
@@ -91,13 +103,16 @@ export function randeazaLocatii(gestiuneId) {
 }
 
 // Randează produsele dintr-o anumită locație
-export function randeazaProduse(gestiuneNume, locatieNume, produseInstanta = []) {
+export function randeazaProduse(gestiuneNume, locatieNume, produseInstanta = [], cautareActiva = false) {
     document.getElementById('titlu-aplicatie').innerText = `${gestiuneNume} → ${locatieNume}`;
     const grid = document.getElementById('grid-produse');
     grid.innerHTML = '';
 
     if (produseInstanta.length === 0) {
-        grid.innerHTML = `<div class="col-span-2 text-center py-10 text-gray-400 font-medium">Niciun produs aici.<br>E timpul să adaugi ceva.</div>`;
+        const mesaj = cautareActiva
+            ? 'Niciun produs nu corespunde căutării.'
+            : 'Niciun produs aici.<br>E timpul să adaugi ceva.';
+        grid.innerHTML = `<div class="col-span-2 text-center py-10 text-gray-400 font-medium">${mesaj}</div>`;
         comutaEcran('ecran-produse');
         return;
     }
@@ -107,24 +122,41 @@ export function randeazaProduse(gestiuneNume, locatieNume, produseInstanta = [])
         card.className = 'card-produs bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700 flex flex-col cursor-pointer';
         card.dataset.produsId = produs.id;
 
-        // Fallback dacă nu are imagine încărcată
-        const imagineStyle = produs.poza_url
-            ? `background-image: url('${produs.poza_url}')`
-            : `background-image: url('https://via.placeholder.com/150/1f2937/9ca3af?text=Fara+Poza')`;
+        const poza = document.createElement('div');
+        poza.className = 'h-32 imagine-produs-bg bg-gray-700';
+        // Setat via proprietate (nu interpolat în HTML/CSS) ca să evităm injecția
+        // din denumiri/URL-uri introduse de utilizator în câmpurile produsului.
+        poza.style.backgroundImage = `url("${IMAGINE_FALLBACK}")`;
+        if (produs.poza_url && esteUrlImagineValid(produs.poza_url)) {
+            const imgTest = new Image();
+            imgTest.onload = () => { poza.style.backgroundImage = `url("${produs.poza_url}")`; };
+            imgTest.src = produs.poza_url;
+        }
 
-        card.innerHTML = `
-            <div class="h-32 imagine-produs-bg" style="${imagineStyle}"></div>
-            <div class="p-3 flex-1 flex flex-col justify-between">
-                <div>
-                    <h4 class="font-bold text-sm text-gray-100 line-clamp-2">${produs.denumire_produs}</h4>
-                    <p class="text-xs text-gray-400 mt-0.5">${produs.marca || ''}</p>
-                </div>
-                <div class="mt-2 flex justify-between items-end">
-                    <span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">${produs.unitate_masura}</span>
-                    <span class="text-sm font-bold text-blue-400">${produs.stoc || 0}</span>
-                </div>
-            </div>
-        `;
+        const corp = document.createElement('div');
+        corp.className = 'p-3 flex-1 flex flex-col justify-between';
+
+        const antet = document.createElement('div');
+        const titlu = document.createElement('h4');
+        titlu.className = 'font-bold text-sm text-gray-100 line-clamp-2';
+        titlu.textContent = produs.denumire_produs;
+        const marca = document.createElement('p');
+        marca.className = 'text-xs text-gray-400 mt-0.5';
+        marca.textContent = produs.marca || '';
+        antet.append(titlu, marca);
+
+        const rand = document.createElement('div');
+        rand.className = 'mt-2 flex justify-between items-end';
+        const unitate = document.createElement('span');
+        unitate.className = 'text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300';
+        unitate.textContent = produs.unitate_masura;
+        const stoc = document.createElement('span');
+        stoc.className = 'text-sm font-bold text-blue-400';
+        stoc.textContent = produs.stoc || 0;
+        rand.append(unitate, stoc);
+
+        corp.append(antet, rand);
+        card.append(poza, corp);
         grid.appendChild(card);
     });
 

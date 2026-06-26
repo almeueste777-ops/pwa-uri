@@ -1,12 +1,28 @@
-import { STRUCTURA_GESTIUNI, comutaEcran, randeazaLocatii, randeazaProduse } from './ui.js';
+import { STRUCTURA_GESTIUNI, comutaEcran, randeazaLocatii, randeazaProduse, esteUrlImagineValid } from './ui.js';
 
 const STORAGE_KEY = 'antigravity-wms-data';
+
+function normalizeazaProdus(produs) {
+    // Compatibilitate cu formatul folosit într-o versiune anterioară a aplicației
+    // (denumire/poza), ca să nu pice ecranul dacă cineva are date vechi salvate.
+    return {
+        id: produs.id,
+        denumire_produs: produs.denumire_produs ?? produs.denumire ?? '',
+        marca: produs.marca ?? '',
+        unitate_masura: produs.unitate_masura ?? 'Buc',
+        poza_url: produs.poza_url ?? produs.poza ?? '',
+    };
+}
 
 function incarcaDate() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
         try {
-            return JSON.parse(raw);
+            const parsat = JSON.parse(raw);
+            return {
+                produse: Array.isArray(parsat.produse) ? parsat.produse.map(normalizeazaProdus) : [],
+                stocuri: parsat.stocuri && typeof parsat.stocuri === 'object' ? parsat.stocuri : {},
+            };
         } catch (e) {
             console.error('Date corupte în localStorage, se reinițializează.', e);
         }
@@ -100,7 +116,7 @@ function randeazaProdusePeEcran() {
     const produseInstanta = obtineProduseInstanta(stare.gestiuneId, stare.locatie).filter(p =>
         !filtru || p.denumire_produs.toLowerCase().includes(filtru) || (p.marca || '').toLowerCase().includes(filtru)
     );
-    randeazaProduse(dateGestiune.nume, stare.locatie, produseInstanta);
+    randeazaProduse(dateGestiune.nume, stare.locatie, produseInstanta, Boolean(filtru));
 }
 
 function navigheazaLaOperatie(produsId) {
@@ -119,7 +135,7 @@ function navigheazaLaOperatie(produsId) {
 function afiseazaDetaliiProdus(produs) {
     elDetaliuNume.textContent = produs.denumire_produs;
     elDetaliuMarca.textContent = produs.marca || '';
-    elDetaliuPoza.style.backgroundImage = produs.poza_url ? `url('${produs.poza_url}')` : '';
+    elDetaliuPoza.style.backgroundImage = produs.poza_url && esteUrlImagineValid(produs.poza_url) ? `url('${produs.poza_url}')` : '';
     const stoc = obtineStoc(stare.gestiuneId, stare.locatie, produs.id);
     elDetaliuStoc.textContent = `Stoc actual: ${stoc} ${produs.unitate_masura}`;
 }
@@ -129,13 +145,17 @@ function adaugaProdusNou() {
     if (!denumire_produs || !denumire_produs.trim()) return;
     const marca = prompt('Marcă (opțional):') || '';
     const unitate_masura = prompt('Unitate de măsură (ex: Buc, Kg, L):', 'Buc') || 'Buc';
-    const poza_url = prompt('URL poză (opțional):') || '';
+    let poza_url = (prompt('URL poză (opțional):') || '').trim();
+    if (poza_url && !esteUrlImagineValid(poza_url)) {
+        alert('URL de poză invalid (trebuie să fie http(s) sau imagine), a fost ignorat.');
+        poza_url = '';
+    }
     const produs = {
         id: `p${Date.now()}`,
         denumire_produs: denumire_produs.trim(),
         marca: marca.trim(),
         unitate_masura: unitate_masura.trim(),
-        poza_url: poza_url.trim(),
+        poza_url,
     };
     date.produse.push(produs);
     salveazaDate();

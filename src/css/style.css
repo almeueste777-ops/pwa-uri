@@ -1,5 +1,8 @@
 /* Stiluri custom pentru efectul Antigravity (fără fricțiune pe mobil) */
-@import url('https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css');
+/* Tailwind este vendorizat local (vezi tailwind.generated.css, generat din
+   tailwind.css cu `npm run build:css`) ca aplicația să rămână funcțională
+   offline / fără acces la CDN-uri externe. */
+@import url('./tailwind.generated.css');
 
 body {
     -webkit-tap-highlight-color: transparent;
