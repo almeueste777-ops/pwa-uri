@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antigravity WMS</title>
     <meta name="theme-color" content="#e0e5ec">
-    <link rel="manifest" href="/public/manifest.json">
-    <link rel="stylesheet" href="/src/css/style.css">
+    <link rel="manifest" href="./public/manifest.json">
+    <link rel="stylesheet" href="./src/css/style.css">
 </head>
 <body class="font-sans">
 
@@ -79,11 +79,14 @@
 
     </main>
 
-    <script type="module" src="/src/js/app.js"></script>
+    <script type="module" src="./src/js/app.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/public/sw.js')
+                // sw.js stă la rădăcina site-ului ca să poată controla tot (scope implicit = '/').
+                // Dacă ar fi în /public/, scope-ul implicit ar fi /public/ și SW-ul nu ar mai
+                // putea servi offline pagina principală index.html.
+                navigator.serviceWorker.register('./sw.js')
                     .then(reg => console.log('Service Worker activat cu succes!'))
                     .catch(err => console.error('Eroare Service Worker:', err));
             });

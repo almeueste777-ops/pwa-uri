@@ -1,17 +1,23 @@
-const CACHE_NAME = 'antigravity-wms-v5';
+const CACHE_NAME = 'antigravity-wms-v6';
+
+// Toate căile sunt relative la scope-ul Service Worker-ului (rădăcina site-ului),
+// ca aplicația să funcționeze și când e găzduită într-un subdirector (ex: GitHub Pages).
+const BAZA = self.registration.scope;
 const ASSETS_DE_CACHE = [
-    '/index.html',
-    '/src/css/style.css',
-    '/src/css/tailwind.generated.css',
-    '/src/js/app.js',
-    '/src/js/ui.js',
-    '/src/db/local-db.js',
-    '/public/manifest.json',
-    '/public/icons/icon-192.png',
-    '/public/icons/icon-512.png',
-    '/public/icons/icon-192-maskable.png',
-    '/public/icons/icon-512-maskable.png',
-];
+    'index.html',
+    'src/css/style.css',
+    'src/css/tailwind.generated.css',
+    'src/js/app.js',
+    'src/js/ui.js',
+    'src/db/local-db.js',
+    'public/manifest.json',
+    'public/icons/icon-192.png',
+    'public/icons/icon-512.png',
+    'public/icons/icon-192-maskable.png',
+    'public/icons/icon-512-maskable.png',
+].map(cale => new URL(cale, BAZA).href);
+
+const INDEX_URL = new URL('index.html', BAZA).href;
 
 self.addEventListener('install', event => {
     event.waitUntil(
@@ -47,7 +53,7 @@ self.addEventListener('fetch', event => {
                     // index.html ca fallback offline; pentru CSS/JS/imagini ar produce
                     // un răspuns HTML cu content-type greșit, deci lăsăm cererea să eșueze.
                     if (event.request.mode === 'navigate') {
-                        return caches.match('/index.html');
+                        return caches.match(INDEX_URL);
                     }
                     return Promise.reject(new Error('offline și fără răspuns în cache'));
                 });
