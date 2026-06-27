@@ -22,12 +22,26 @@
         <h1 id="titlu-aplicatie" class="text-lg font-bold tracking-wide text-center flex-1 truncate">
             Selectează Gestiunea
         </h1>
-        <div id="status-retea" class="w-3 h-3 rounded-full bg-green-500 shadow-md flex-shrink-0" title="Online"></div>
+        <div class="flex items-center gap-3 flex-shrink-0">
+            <span id="utilizator-curent" class="text-xs text-gray-500 font-semibold hidden"></span>
+            <div id="status-retea" class="w-3 h-3 rounded-full bg-green-500 shadow-md flex-shrink-0" title="Online"></div>
+        </div>
     </header>
 
     <main class="p-4 sm:p-6 w-full sm:max-w-xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto">
 
-        <section id="ecran-gestiuni" class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+        <section id="ecran-login" class="neu-card p-6 space-y-4 sm:max-w-md mx-auto">
+            <h2 class="text-lg font-bold text-center mb-2">Selectează rolul și introdu PIN-ul</h2>
+            <div class="grid grid-cols-2 gap-3">
+                <button id="rol-magazioner" data-rol="Magazioner" class="card-rol neu-card py-4 font-bold text-gray-600 transition">Magazioner</button>
+                <button id="rol-gestionar" data-rol="Gestionar" class="card-rol neu-card py-4 font-bold text-gray-600 transition">Gestionar</button>
+            </div>
+            <input type="password" id="input-pin-login" inputmode="numeric" placeholder="PIN" class="w-full rounded-xl p-3 text-center text-xl font-bold hidden">
+            <button id="btn-confirma-login" class="neu-btn-circular w-full text-blue-500 font-bold py-4 transition hidden">Intră în aplicație</button>
+            <p id="eroare-login" class="text-rose-500 text-sm text-center hidden">PIN incorect.</p>
+        </section>
+
+        <section id="ecran-gestiuni" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
         </section>
 
         <section id="ecran-locatii" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pt-2">
@@ -61,6 +75,7 @@
                     <p id="detaliu-marca-produs" class="text-sm text-gray-500">Marcă</p>
                     <p id="detaliu-stoc-actual" class="text-sm text-blue-500 font-semibold mt-1">Stoc rămas: 0 Buc</p>
                     <p id="detaliu-inventar-info" class="text-xs text-gray-400 mt-0.5"></p>
+                    <p id="detaliu-ultima-operatiune" class="text-xs text-gray-400 mt-0.5"></p>
                 </div>
             </div>
 

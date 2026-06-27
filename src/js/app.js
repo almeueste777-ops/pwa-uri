@@ -7,6 +7,16 @@ let gestiuneCurenta = null;
 let locatieCurenta = null;
 let produsCurent = null;
 let tipOperatieCurenta = null;
+let rolSelectat = null;
+
+const PIN_ROLURI = { Magazioner: '1234', Gestionar: '9999' };
+const USER_SESSION_KEY = 'antigravity-utilizator-curent';
+
+const elEcranLogin = document.getElementById('ecran-login');
+const elInputPinLogin = document.getElementById('input-pin-login');
+const elBtnConfirmaLogin = document.getElementById('btn-confirma-login');
+const elEroareLogin = document.getElementById('eroare-login');
+const elUtilizatorCurent = document.getElementById('utilizator-curent');
 
 const elCautareRapida = document.getElementById('cautare-rapida');
 const elBtnAdaugaProdusNou = document.getElementById('btn-adauga-produs-nou');
@@ -16,6 +26,7 @@ const elDetaliuNume = document.getElementById('detaliu-nume-produs');
 const elDetaliuMarca = document.getElementById('detaliu-marca-produs');
 const elDetaliuStoc = document.getElementById('detaliu-stoc-actual');
 const elDetaliuInventarInfo = document.getElementById('detaliu-inventar-info');
+const elDetaliuUltimaOperatiune = document.getElementById('detaliu-ultima-operatiune');
 const elInputStocInventar = document.getElementById('input-stoc-inventar');
 const elInputDataInventar = document.getElementById('input-data-inventar');
 const elBtnSalveazaInventar = document.getElementById('btn-salveaza-inventar');
@@ -52,6 +63,9 @@ async function afiseazaDetaliiProdus(produs) {
     elDetaliuInventarInfo.textContent = inregistrare.dataInventar
         ? `Stoc existent la inventar: ${inregistrare.stocInventar} (${inregistrare.dataInventar})`
         : 'Niciun inventar înregistrat încă.';
+    elDetaliuUltimaOperatiune.textContent = inregistrare.ultimaOperatiune
+        ? `Ultima mișcare: ${inregistrare.ultimaOperatiune}`
+        : '';
 }
 
 async function salveazaInventarProdusCurent() {
@@ -123,13 +137,40 @@ async function valideazaMiscare() {
     }
 
     const delta = tipOperatieCurenta === 'intrare' ? cantitate : -cantitate;
-    await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta);
+    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
+    await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta, operator);
 
     await afiseazaDetaliiProdus(produsCurent);
     elZonaIntroducere.classList.add('hidden');
     elInputCantitate.value = '';
     elInputExpirare.value = '';
     tipOperatieCurenta = null;
+}
+
+function afiseazaUtilizatorCurent(utilizator) {
+    elUtilizatorCurent.textContent = `${utilizator.rol}`;
+    elUtilizatorCurent.classList.remove('hidden');
+}
+
+function selecteazaRolLogin(rol) {
+    rolSelectat = rol;
+    elInputPinLogin.classList.remove('hidden');
+    elBtnConfirmaLogin.classList.remove('hidden');
+    elEroareLogin.classList.add('hidden');
+    elInputPinLogin.value = '';
+    elInputPinLogin.focus();
+}
+
+function confirmaLogin() {
+    if (!rolSelectat) return;
+    if (elInputPinLogin.value !== PIN_ROLURI[rolSelectat]) {
+        elEroareLogin.classList.remove('hidden');
+        return;
+    }
+    const utilizator = { rol: rolSelectat };
+    sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(utilizator));
+    afiseazaUtilizatorCurent(utilizator);
+    comutaEcran('ecran-gestiuni');
 }
 
 function initializeazaStatusRetea() {
@@ -179,6 +220,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('Eroare la aprinderea motorului local:', error);
     }
+
+    // 1b. Verificăm dacă există deja o sesiune activă (rol ales în acest tab), ca utilizatorul
+    // să nu fie pus să introducă PIN-ul la fiecare reîncărcare de pagină.
+    const utilizatorSalvat = sessionStorage.getItem(USER_SESSION_KEY);
+    if (utilizatorSalvat) {
+        const utilizator = JSON.parse(utilizatorSalvat);
+        rolSelectat = utilizator.rol;
+        afiseazaUtilizatorCurent(utilizator);
+        comutaEcran('ecran-gestiuni');
+    } else {
+        comutaEcran('ecran-login');
+    }
+
+    elEcranLogin.addEventListener('click', (e) => {
+        const cardRol = e.target.closest('.card-rol');
+        if (cardRol) selecteazaRolLogin(cardRol.dataset.rol);
+    });
+    elBtnConfirmaLogin.addEventListener('click', confirmaLogin);
 
     // 2. Desenăm cardurile de gestiune (CRPV / Mănăstire) și legăm click-urile prin delegare,
     // pentru că butoanele sunt generate dinamic în ui.js

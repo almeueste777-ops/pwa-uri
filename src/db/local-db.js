@@ -113,16 +113,17 @@ export async function getInregistrareStoc(gestiuneId, locatie, produsId) {
         valoare: inregistrare ? inregistrare.valoare : 0,
         stocInventar: inregistrare ? inregistrare.stocInventar ?? null : null,
         dataInventar: inregistrare ? inregistrare.dataInventar ?? null : null,
+        ultimaOperatiune: inregistrare ? inregistrare.ultimaOperatiune ?? null : null,
     };
 }
 
-export async function ajusteazaStoc(gestiuneId, locatie, produsId, delta) {
+export async function ajusteazaStoc(gestiuneId, locatie, produsId, delta, ultimaOperatiune = null) {
     const cheie = cheieStoc(gestiuneId, locatie, produsId);
     const store = tranzactie(STORE_STOCURI, 'readwrite');
     const inregistrare = await promisifica(store.get(cheie));
     const curent = inregistrare ? inregistrare.valoare : 0;
     const nou = Math.max(0, curent + delta);
-    await promisifica(tranzactie(STORE_STOCURI, 'readwrite').put({ ...inregistrare, cheie, valoare: nou }));
+    await promisifica(tranzactie(STORE_STOCURI, 'readwrite').put({ ...inregistrare, cheie, valoare: nou, ultimaOperatiune }));
     return nou;
 }
 
