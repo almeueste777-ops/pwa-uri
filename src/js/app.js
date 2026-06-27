@@ -1,5 +1,5 @@
 // app.js - Creierul aplicației Antigravity
-import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie } from '../db/local-db.js';
+import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar } from '../db/local-db.js';
 import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, STRUCTURA_GESTIUNI } from './ui.js';
 
 let dbInstance = null;
@@ -15,6 +15,10 @@ const elDetaliuPoza = document.getElementById('detaliu-poza-produs');
 const elDetaliuNume = document.getElementById('detaliu-nume-produs');
 const elDetaliuMarca = document.getElementById('detaliu-marca-produs');
 const elDetaliuStoc = document.getElementById('detaliu-stoc-actual');
+const elDetaliuInventarInfo = document.getElementById('detaliu-inventar-info');
+const elInputStocInventar = document.getElementById('input-stoc-inventar');
+const elInputDataInventar = document.getElementById('input-data-inventar');
+const elBtnSalveazaInventar = document.getElementById('btn-salveaza-inventar');
 
 const elBtnSchimbaPoza = document.getElementById('btn-schimba-poza');
 
@@ -43,8 +47,26 @@ async function afiseazaDetaliiProdus(produs) {
     elDetaliuPoza.style.backgroundImage = produs.poza_url && esteUrlImagineValid(produs.poza_url)
         ? `url('${produs.poza_url}')`
         : '';
-    const stoc = await getStoc(gestiuneCurenta, locatieCurenta, produs.id);
-    elDetaliuStoc.textContent = `Stoc actual: ${stoc} ${produs.unitate_masura}`;
+    const inregistrare = await getInregistrareStoc(gestiuneCurenta, locatieCurenta, produs.id);
+    elDetaliuStoc.textContent = `Stoc rămas: ${inregistrare.valoare} ${produs.unitate_masura}`;
+    elDetaliuInventarInfo.textContent = inregistrare.dataInventar
+        ? `Stoc existent la inventar: ${inregistrare.stocInventar} (${inregistrare.dataInventar})`
+        : 'Niciun inventar înregistrat încă.';
+}
+
+async function salveazaInventarProdusCurent() {
+    if (!produsCurent) return;
+    const stocConstatat = parseFloat(elInputStocInventar.value);
+    if (isNaN(stocConstatat) || stocConstatat < 0) {
+        alert('Introdu un stoc existent valid.');
+        return;
+    }
+    const dataInventar = elInputDataInventar.value || new Date().toISOString().slice(0, 10);
+
+    await inregistreazaInventar(gestiuneCurenta, locatieCurenta, produsCurent.id, stocConstatat, dataInventar);
+    await afiseazaDetaliiProdus(produsCurent);
+    elInputStocInventar.value = '';
+    elInputDataInventar.value = '';
 }
 
 async function deschideOperatie(produsId) {
@@ -198,6 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     elOpIntrare.addEventListener('click', () => selecteazaOperatie('intrare'));
     elOpIesire.addEventListener('click', () => selecteazaOperatie('iesire'));
     elBtnValideaza.addEventListener('click', valideazaMiscare);
+    elBtnSalveazaInventar.addEventListener('click', salveazaInventarProdusCurent);
 
     // 4. Logica butonului "Înapoi" - Navigare fluidă, fără refresh
     document.getElementById('btn-inapoi').addEventListener('click', () => {

@@ -59,7 +59,8 @@
                 <div>
                     <h3 id="detaliu-nume-produs" class="text-lg font-bold">Denumire Produs</h3>
                     <p id="detaliu-marca-produs" class="text-sm text-gray-500">Marcă</p>
-                    <p id="detaliu-stoc-actual" class="text-sm text-blue-500 font-semibold mt-1">Stoc actual: 0 Buc</p>
+                    <p id="detaliu-stoc-actual" class="text-sm text-blue-500 font-semibold mt-1">Stoc rămas: 0 Buc</p>
+                    <p id="detaliu-inventar-info" class="text-xs text-gray-400 mt-0.5"></p>
                 </div>
             </div>
 
@@ -69,6 +70,17 @@
                 </button>
                 <button id="op-iesire" class="neu-card text-rose-500 font-bold py-3 transition">
                     - IEȘIRE (Consum)
+                </button>
+            </div>
+
+            <div class="neu-card p-3 space-y-2">
+                <label class="block text-xs font-semibold text-gray-500">INVENTARIERE (stoc existent constatat)</label>
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="number" id="input-stoc-inventar" step="0.01" placeholder="Stoc existent" class="w-full rounded-xl p-3 text-center">
+                    <input type="date" id="input-data-inventar" class="w-full rounded-xl p-3">
+                </div>
+                <button id="btn-salveaza-inventar" class="neu-btn-circular w-full text-amber-600 font-bold py-3 transition">
+                    Salvează Inventarul
                 </button>
             </div>
 

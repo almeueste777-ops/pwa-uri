@@ -105,13 +105,39 @@ export async function getStoc(gestiuneId, locatie, produsId) {
     return inregistrare ? inregistrare.valoare : 0;
 }
 
+export async function getInregistrareStoc(gestiuneId, locatie, produsId) {
+    const inregistrare = await promisifica(
+        tranzactie(STORE_STOCURI, 'readonly').get(cheieStoc(gestiuneId, locatie, produsId))
+    );
+    return {
+        valoare: inregistrare ? inregistrare.valoare : 0,
+        stocInventar: inregistrare ? inregistrare.stocInventar ?? null : null,
+        dataInventar: inregistrare ? inregistrare.dataInventar ?? null : null,
+    };
+}
+
 export async function ajusteazaStoc(gestiuneId, locatie, produsId, delta) {
     const cheie = cheieStoc(gestiuneId, locatie, produsId);
     const store = tranzactie(STORE_STOCURI, 'readwrite');
     const inregistrare = await promisifica(store.get(cheie));
     const curent = inregistrare ? inregistrare.valoare : 0;
     const nou = Math.max(0, curent + delta);
-    await promisifica(tranzactie(STORE_STOCURI, 'readwrite').put({ cheie, valoare: nou }));
+    await promisifica(tranzactie(STORE_STOCURI, 'readwrite').put({ ...inregistrare, cheie, valoare: nou }));
+    return nou;
+}
+
+export async function inregistreazaInventar(gestiuneId, locatie, produsId, stocConstatat, dataInventar) {
+    const cheie = cheieStoc(gestiuneId, locatie, produsId);
+    const store = tranzactie(STORE_STOCURI, 'readwrite');
+    const inregistrare = await promisifica(store.get(cheie));
+    const nou = {
+        ...inregistrare,
+        cheie,
+        valoare: stocConstatat,
+        stocInventar: stocConstatat,
+        dataInventar,
+    };
+    await promisifica(tranzactie(STORE_STOCURI, 'readwrite').put(nou));
     return nou;
 }
 
