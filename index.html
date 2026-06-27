@@ -200,14 +200,17 @@
     <script type="module" src="./src/js/app.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            // Când un Service Worker nou preia controlul (după o actualizare), reîncărcăm
-            // pagina o singură dată ca să rulăm imediat codul proaspăt, nu cel din cache.
-            let reincarcat = false;
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (reincarcat) return;
-                reincarcat = true;
-                window.location.reload();
-            });
+            // Doar la o ACTUALIZARE (când există deja un controller) reîncărcăm pagina o
+            // singură dată, ca să rulăm codul proaspăt. La prima instalare NU reîncărcăm,
+            // altfel reload-ul ar întrerupe popularea inițială a bazei de date (cursă).
+            if (navigator.serviceWorker.controller) {
+                let reincarcat = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (reincarcat) return;
+                    reincarcat = true;
+                    window.location.reload();
+                });
+            }
 
             window.addEventListener('load', () => {
                 // sw.js stă la rădăcina site-ului ca să poată controla tot (scope implicit = '/').

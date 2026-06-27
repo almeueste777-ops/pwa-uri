@@ -102,6 +102,14 @@ input:focus {
     box-shadow: none !important;
 }
 
+/* Câmpurile din registru: mici scobituri neumorfice, chiar dacă sunt în .neu-card */
+.neu-card input.inp-registru {
+    background-color: var(--bg-neu) !important;
+    box-shadow: inset 3px 3px 6px var(--shadow-dark),
+                inset -3px -3px 6px var(--shadow-light) !important;
+    border-radius: 0.6rem;
+}
+
 /* Previne zoom-ul automat enervant pe iPhone */
 input, select, button {
     font-size: 16px !important;

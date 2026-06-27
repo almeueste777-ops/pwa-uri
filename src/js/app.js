@@ -79,6 +79,7 @@ const elCorpRegistru = document.getElementById('corp-registru');
 let lunaRegistru = null;     // Date pe ziua 1 a lunii afișate
 let registruStocInitial = 0;
 let registruZile = {};       // { ziuaNum: { i: intrare, e: iesire } }
+let registruStocFinal = 0;   // stoc rezultat la finalul lunii afișate
 
 const elModalEditare = document.getElementById('modal-editare');
 const elEditPoza = document.getElementById('edit-poza');
@@ -327,15 +328,46 @@ async function valideazaMiscare() {
         return;
     }
 
-    const delta = tipOperatieCurenta === 'intrare' ? cantitate : -cantitate;
-    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
-    await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta, operator);
+    // O singură sursă de adevăr: mișcarea rapidă se scrie în registrul lunii curente
+    // (ziua de azi), iar stocul rezultă din registru. Așa registrul și stocul rămas
+    // nu se mai desincronizează.
+    await aplicaMiscareCurentaInRegistru(tipOperatieCurenta, cantitate);
 
     await afiseazaDetaliiProdus(produsCurent);
     elZonaIntroducere.classList.add('hidden');
     elInputCantitate.value = '';
     elInputExpirare.value = '';
     tipOperatieCurenta = null;
+}
+
+// Aplică o mișcare rapidă (intrare/ieșire) în fila lunii curente, recalculează
+// stocul final și îl scrie ca „stoc rămas” al produsului.
+async function aplicaMiscareCurentaInRegistru(tip, cantitate) {
+    const acum = new Date();
+    const luna = lunaCheie(new Date(acum.getFullYear(), acum.getMonth(), 1));
+    const inreg = await getRegistru(gestiuneCurenta, locatieCurenta, produsCurent.id, luna);
+    const zile = inreg.zile || {};
+    const fileGoala = !inreg.stocInitial && Object.keys(zile).length === 0;
+    const stocInitial = fileGoala
+        ? (await getStoc(gestiuneCurenta, locatieCurenta, produsCurent.id))
+        : (Number(inreg.stocInitial) || 0);
+
+    const zi = acum.getDate();
+    if (!zile[zi]) zile[zi] = {};
+    const camp = tip === 'intrare' ? 'i' : 'e';
+    zile[zi][camp] = (Number(zile[zi][camp]) || 0) + cantitate;
+
+    const zileInLuna = new Date(acum.getFullYear(), acum.getMonth() + 1, 0).getDate();
+    let final = Number(stocInitial) || 0;
+    for (let d = 1; d <= zileInLuna; d++) {
+        const r = zile[d] || {};
+        final += (Number(r.i) || 0) - (Number(r.e) || 0);
+    }
+
+    await salveazaRegistru(gestiuneCurenta, locatieCurenta, produsCurent.id, luna, Number(stocInitial) || 0, zile);
+    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
+    await seteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, final, operator);
+    if (produsCurent) produsCurent.stoc = final;
 }
 
 // --- Registru lunar (fișă de magazie) cu câmpuri fizice pe fiecare zi ---
@@ -355,8 +387,11 @@ async function deschideRegistru() {
 async function incarcaRegistru() {
     const luna = lunaCheie(lunaRegistru);
     const date = await getRegistru(gestiuneCurenta, locatieCurenta, produsCurent.id, luna);
-    registruStocInitial = date.stocInitial || 0;
     registruZile = date.zile || {};
+    // Dacă fila lunii e goală, pornim stocul inițial din stocul actual al produsului,
+    // ca registrul să fie de la început consistent cu stocul rămas.
+    const fileGoala = !date.stocInitial && Object.keys(registruZile).length === 0;
+    registruStocInitial = fileGoala ? (produsCurent.stoc || 0) : (date.stocInitial || 0);
     elRegistruStocInitial.value = registruStocInitial;
 
     document.getElementById('titlu-aplicatie').innerText = produsCurent.denumire_produs;
@@ -403,18 +438,38 @@ function recalculeazaRegistru() {
         if (celInainte) celInainte.textContent = (i || e) ? inainte : '';
         if (celDupa) celDupa.textContent = (i || e) ? dupa : '';
     }
+    registruStocFinal = running;
     elRegistruInfo.textContent = `Stoc final lună: ${running}`;
+}
+
+function esteLunaCurenta() {
+    const acum = new Date();
+    return lunaRegistru.getFullYear() === acum.getFullYear() && lunaRegistru.getMonth() === acum.getMonth();
 }
 
 async function salveazaRegistruCurent() {
     const luna = lunaCheie(lunaRegistru);
     await salveazaRegistru(gestiuneCurenta, locatieCurenta, produsCurent.id, luna, Number(registruStocInitial) || 0, registruZile);
+
+    // Legăm registrul de stocul produsului: stocul final al lunii curente devine
+    // „stoc rămas”. Lunile trecute nu modifică stocul curent.
+    if (esteLunaCurenta()) {
+        const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
+        await seteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, registruStocFinal, operator);
+        if (produsCurent) produsCurent.stoc = registruStocFinal;
+    }
+}
+
+let timerSalvareRegistru = null;
+function salveazaRegistruDebounce() {
+    clearTimeout(timerSalvareRegistru);
+    timerSalvareRegistru = setTimeout(() => salveazaRegistruCurent(), 400);
 }
 
 function onInputRegistru(e) {
     const inp = e.target.closest('.inp-registru');
     if (!inp) return;
-    const zi = inp.dataset.zi;
+    const zi = Number(inp.dataset.zi);
     const tip = inp.dataset.tip; // 'i' sau 'e'
     const val = inp.value === '' ? undefined : Number(inp.value);
     if (!registruZile[zi]) registruZile[zi] = {};
@@ -425,13 +480,13 @@ function onInputRegistru(e) {
     }
     if (Object.keys(registruZile[zi]).length === 0) delete registruZile[zi];
     recalculeazaRegistru();
-    salveazaRegistruCurent();
+    salveazaRegistruDebounce();
 }
 
 function onStocInitialRegistru() {
     registruStocInitial = elRegistruStocInitial.value === '' ? 0 : Number(elRegistruStocInitial.value) || 0;
     recalculeazaRegistru();
-    salveazaRegistruCurent();
+    salveazaRegistruDebounce();
 }
 
 async function schimbaLunaRegistru(deltaLuni) {

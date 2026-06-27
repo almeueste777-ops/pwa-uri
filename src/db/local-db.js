@@ -173,6 +173,7 @@ export async function inregistreazaInventar(gestiuneId, locatie, produsId, stocC
         valoare: stocConstatat,
         stocInventar: stocConstatat,
         dataInventar,
+        ultimaOperatiune: `Inventar ${dataInventar}`,
     };
     await promisifica(tranzactie(STORE_STOCURI, 'readwrite').put(nou));
     return nou;
@@ -230,7 +231,9 @@ export async function ruleazaSeedCuratenie(gestiuneId, locatie) {
             gestiuneId: String(gestiuneId),
             locatie,
         });
-        await ajusteazaStoc(gestiuneId, locatie, produs.id, stoc);
+        // Stoc ABSOLUT (nu delta): chiar dacă seed-ul ar rula de două ori dintr-o
+        // cursă, stocul rămâne corect (248), nu se dublează (496).
+        await seteazaStoc(gestiuneId, locatie, produs.id, stoc);
     }
 
     localStorage.setItem(SEED_CURATENIE_FLAG, '1');
@@ -306,6 +309,15 @@ export async function redenumesteLocatie(gestiuneId, vechi, nou) {
             await promisifica(tranzactie(STORE_MISCARI, 'readwrite').put({ ...m, locatie: nou }));
         }
     }
+
+    const registre = await promisifica(tranzactie(STORE_REGISTRU, 'readonly').getAll());
+    for (const r of registre) {
+        if (r.cheie.startsWith(prefix)) {
+            const cheieNoua = `${g}|${nou}|` + r.cheie.slice(prefix.length);
+            await promisifica(tranzactie(STORE_REGISTRU, 'readwrite').delete(r.cheie));
+            await promisifica(tranzactie(STORE_REGISTRU, 'readwrite').put({ ...r, cheie: cheieNoua }));
+        }
+    }
 }
 
 export async function stergeDateLocatie(gestiuneId, locatie) {
@@ -332,6 +344,13 @@ export async function stergeDateLocatie(gestiuneId, locatie) {
             await promisifica(tranzactie(STORE_MISCARI, 'readwrite').delete(m.id));
         }
     }
+
+    const registre = await promisifica(tranzactie(STORE_REGISTRU, 'readonly').getAll());
+    for (const r of registre) {
+        if (r.cheie.startsWith(prefix)) {
+            await promisifica(tranzactie(STORE_REGISTRU, 'readwrite').delete(r.cheie));
+        }
+    }
 }
 
 export async function stergeDateGestiune(gestiuneId) {
@@ -356,6 +375,13 @@ export async function stergeDateGestiune(gestiuneId) {
     for (const m of miscari) {
         if (String(m.gestiuneId) === g) {
             await promisifica(tranzactie(STORE_MISCARI, 'readwrite').delete(m.id));
+        }
+    }
+
+    const registre = await promisifica(tranzactie(STORE_REGISTRU, 'readonly').getAll());
+    for (const r of registre) {
+        if (r.cheie.startsWith(prefix)) {
+            await promisifica(tranzactie(STORE_REGISTRU, 'readwrite').delete(r.cheie));
         }
     }
 }
