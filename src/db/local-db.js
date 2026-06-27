@@ -79,9 +79,23 @@ async function migreazaDinLocalStorage() {
     console.log('Date migrate din localStorage în IndexedDB.');
 }
 
+// Resetare unică a datelor locale: în versiunea veche produsele nu erau legate
+// de o locație anume, așa că apăreau în toate sectoarele. Curățăm o singură dată
+// și lăsăm seed-ul să repopuleze corect, cu locație.
+const SCHEMA_RESET_FLAG = 'antigravity-schema-v2';
+
+async function reseteazaSchemaV2() {
+    if (localStorage.getItem(SCHEMA_RESET_FLAG)) return;
+    await promisifica(tranzactie(STORE_PRODUSE, 'readwrite').clear());
+    await promisifica(tranzactie(STORE_STOCURI, 'readwrite').clear());
+    localStorage.removeItem(SEED_CURATENIE_FLAG);
+    localStorage.setItem(SCHEMA_RESET_FLAG, '1');
+}
+
 export async function initLocalDB() {
     db = await deschideDB();
     await migreazaDinLocalStorage();
+    await reseteazaSchemaV2();
     return db;
 }
 
@@ -191,6 +205,8 @@ export async function ruleazaSeedCuratenie(gestiuneId, locatie) {
             marca,
             unitate_masura: 'Buc',
             poza_url: '',
+            gestiuneId: String(gestiuneId),
+            locatie,
         });
         await ajusteazaStoc(gestiuneId, locatie, produs.id, stoc);
     }
@@ -200,8 +216,13 @@ export async function ruleazaSeedCuratenie(gestiuneId, locatie) {
 
 export async function getProduseCuStoc(gestiuneId, locatie) {
     const produse = await getProduse();
+    // Doar produsele care aparțin exact acestei locații (gestiune + sector),
+    // ca să nu mai apară produsele de curățenie în toate sectoarele.
+    const aleLocatiei = produse.filter(
+        p => String(p.gestiuneId) === String(gestiuneId) && p.locatie === locatie
+    );
     return Promise.all(
-        produse.map(async produs => ({
+        aleLocatiei.map(async produs => ({
             ...produs,
             stoc: await getStoc(gestiuneId, locatie, produs.id),
         }))

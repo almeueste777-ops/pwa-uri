@@ -63,20 +63,24 @@
         </section>
 
         <section id="ecran-operatie" class="hidden neu-card p-5 space-y-4 sm:max-w-md md:mx-auto">
-            <div class="flex items-center space-x-4">
+            <div class="flex items-start space-x-4">
                 <div class="relative flex-shrink-0">
                     <div id="detaliu-poza-produs" class="w-20 h-20 neu-icon-badge overflow-hidden bg-cover bg-center"></div>
                     <button id="btn-schimba-poza" title="Adaugă/schimbă poza" class="neu-btn-circular w-7 h-7 flex items-center justify-center text-gray-500 absolute -bottom-1 -right-1">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                     </button>
+                    <input type="file" id="input-poza-fisier" accept="image/*" class="hidden">
                 </div>
-                <div>
+                <div class="flex-1 min-w-0">
                     <h3 id="detaliu-nume-produs" class="text-lg font-bold">Denumire Produs</h3>
                     <p id="detaliu-marca-produs" class="text-sm text-gray-500">Marcă</p>
                     <p id="detaliu-stoc-actual" class="text-sm text-blue-500 font-semibold mt-1">Stoc rămas: 0 Buc</p>
                     <p id="detaliu-inventar-info" class="text-xs text-gray-400 mt-0.5"></p>
                     <p id="detaliu-ultima-operatiune" class="text-xs text-gray-400 mt-0.5"></p>
                 </div>
+                <button id="btn-editeaza-produs" title="Editează produs" class="neu-btn-circular w-9 h-9 flex items-center justify-center text-gray-500 flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                </button>
             </div>
 
             <div class="grid grid-cols-2 gap-3 pt-2">

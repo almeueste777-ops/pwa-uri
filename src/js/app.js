@@ -32,6 +32,8 @@ const elInputDataInventar = document.getElementById('input-data-inventar');
 const elBtnSalveazaInventar = document.getElementById('btn-salveaza-inventar');
 
 const elBtnSchimbaPoza = document.getElementById('btn-schimba-poza');
+const elInputPozaFisier = document.getElementById('input-poza-fisier');
+const elBtnEditeazaProdus = document.getElementById('btn-editeaza-produs');
 
 const elOpIntrare = document.getElementById('op-intrare');
 const elOpIesire = document.getElementById('op-iesire');
@@ -98,17 +100,69 @@ async function deschideOperatie(produsId) {
     comutaEcran('ecran-operatie');
 }
 
-async function schimbaPozaProdusCurent() {
+// Deschide selectorul de fișiere / camera telefonului pentru poza produsului.
+function schimbaPozaProdusCurent() {
     if (!produsCurent) return;
-    let poza_url = (prompt('URL poză (http(s) sau imagine):', produsCurent.poza_url || '') || '').trim();
-    if (poza_url && !esteUrlImagineValid(poza_url)) {
-        alert('URL de poză invalid (trebuie să fie http(s) sau imagine), a fost ignorat.');
-        return;
+    elInputPozaFisier.value = '';
+    elInputPozaFisier.click();
+}
+
+// Redimensionează poza (max 800px) și o transformă în data URL JPEG, ca să nu
+// umple memoria locală cu imagini uriașe direct de la cameră.
+function comprimaImagine(fisier, maxLatura = 800) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > height && width > maxLatura) {
+                    height = Math.round(height * maxLatura / width);
+                    width = maxLatura;
+                } else if (height >= width && height > maxLatura) {
+                    width = Math.round(width * maxLatura / height);
+                    height = maxLatura;
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.8));
+            };
+            img.onerror = reject;
+            img.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(fisier);
+    });
+}
+
+async function incarcaPozaSelectata(e) {
+    const fisier = e.target.files && e.target.files[0];
+    if (!fisier || !produsCurent) return;
+    try {
+        const poza_url = await comprimaImagine(fisier);
+        const { stoc, ...produsFaraStoc } = produsCurent;
+        produsCurent = await adaugaProdus({ ...produsFaraStoc, poza_url });
+        produsCurent.stoc = stoc;
+        await afiseazaDetaliiProdus(produsCurent);
+    } catch (err) {
+        console.error('Eroare la încărcarea pozei:', err);
+        alert('Nu am putut încărca poza. Încearcă altă imagine.');
     }
+}
+
+async function editeazaProdusCurent() {
+    if (!produsCurent) return;
+    const denumire_produs = (prompt('Denumire produs:', produsCurent.denumire_produs) || '').trim();
+    if (!denumire_produs) return;
+    const marca = (prompt('Marcă (opțional):', produsCurent.marca || '') || '').trim();
+    const unitate_masura = (prompt('Unitate de măsură:', produsCurent.unitate_masura || 'Buc') || 'Buc').trim();
 
     const { stoc, ...produsFaraStoc } = produsCurent;
-    produsCurent = await adaugaProdus({ ...produsFaraStoc, poza_url });
+    produsCurent = await adaugaProdus({ ...produsFaraStoc, denumire_produs, marca, unitate_masura });
     produsCurent.stoc = stoc;
+    document.getElementById('titlu-aplicatie').innerText = produsCurent.denumire_produs;
     await afiseazaDetaliiProdus(produsCurent);
 }
 
@@ -187,23 +241,20 @@ function initializeazaStatusRetea() {
 }
 
 async function adaugaProdusNou() {
+    if (!gestiuneCurenta || !locatieCurenta) return;
     const denumire_produs = prompt('Denumire produs:');
     if (!denumire_produs || !denumire_produs.trim()) return;
     const marca = prompt('Marcă (opțional):') || '';
     const unitate_masura = prompt('Unitate de măsură (ex: Buc, Kg, L):', 'Buc') || 'Buc';
-
-    let poza_url = (prompt('URL poză (opțional):') || '').trim();
-    if (poza_url && !esteUrlImagineValid(poza_url)) {
-        alert('URL de poză invalid (trebuie să fie http(s) sau imagine), a fost ignorat.');
-        poza_url = '';
-    }
 
     await adaugaProdus({
         id: `p${Date.now()}`,
         denumire_produs: denumire_produs.trim(),
         marca: marca.trim(),
         unitate_masura: unitate_masura.trim(),
-        poza_url,
+        poza_url: '',
+        gestiuneId: gestiuneCurenta,
+        locatie: locatieCurenta,
     });
 
     await rerandeazaProduse();
@@ -276,6 +327,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 3d. Operația de intrare/ieșire stoc
     elBtnSchimbaPoza.addEventListener('click', schimbaPozaProdusCurent);
+    elInputPozaFisier.addEventListener('change', incarcaPozaSelectata);
+    elBtnEditeazaProdus.addEventListener('click', editeazaProdusCurent);
     elOpIntrare.addEventListener('click', () => selecteazaOperatie('intrare'));
     elOpIesire.addEventListener('click', () => selecteazaOperatie('iesire'));
     elBtnValideaza.addEventListener('click', valideazaMiscare);
