@@ -115,6 +115,62 @@ export async function ajusteazaStoc(gestiuneId, locatie, produsId, delta) {
     return nou;
 }
 
+const SEED_CURATENIE_FLAG = 'antigravity-seed-curatenie-v1';
+
+const SEED_CURATENIE = [
+    { denumire_produs: 'Detergent Vase 1 litru', marca: 'Dual Power', stoc: 248 },
+    { denumire_produs: 'Gel de duș 1 litru', marca: 'Malizia', stoc: 205 },
+    { denumire_produs: 'Șampon 600 ml', marca: 'Wash&Go', stoc: 66 },
+    { denumire_produs: 'Șampon 360 ml', marca: 'Wash&Go', stoc: 60 },
+    { denumire_produs: 'Bricuri de bărbierit', marca: 'Gillette', stoc: 58 },
+    { denumire_produs: 'Spumă de bărbierit 200 ml', marca: 'Gillette', stoc: 44 },
+    { denumire_produs: 'Mănuși L', marca: 'Nitrylex Basic', stoc: 3 },
+    { denumire_produs: 'Mănuși M', marca: 'Nitrylex', stoc: 116 },
+    { denumire_produs: 'Mănuși M', marca: 'Nutouch', stoc: 12 },
+    { denumire_produs: 'Mănuși S', marca: 'Nitrylex', stoc: 35 },
+    { denumire_produs: 'Mănuși S', marca: 'Nutouch', stoc: 50 },
+    { denumire_produs: 'Șervețele umede', marca: 'Cien', stoc: 62 },
+    { denumire_produs: 'Săpun lichid 1000 ml', marca: 'Dermomed', stoc: 18 },
+    { denumire_produs: 'Periuțe de dinți', marca: 'Colgate', stoc: 12 },
+    { denumire_produs: 'Găleți', marca: 'Metro', stoc: 45 },
+    { denumire_produs: 'Mopuri', marca: 'Metro', stoc: 29 },
+    { denumire_produs: 'Soluție curățat cuptoare', marca: 'SanoForte', stoc: 136 },
+    { denumire_produs: 'Soluție WC', marca: 'Domestos', stoc: 190 },
+    { denumire_produs: 'Clor 2 litri', marca: 'Candeggina', stoc: 96 },
+    { denumire_produs: 'Soluție geamuri 580 ml', marca: 'Quasar', stoc: 41 },
+    { denumire_produs: 'Detergent lichid 250 ml', marca: 'Ariel', stoc: 7 },
+    { denumire_produs: 'Detergent praf', marca: 'Torre', stoc: 150 },
+    { denumire_produs: 'Mop', marca: 'Metro', stoc: 12 },
+    { denumire_produs: 'Fărașe', marca: 'Metro', stoc: 24 },
+    { denumire_produs: 'Maturi', marca: '', stoc: 18 },
+    { denumire_produs: 'Prosoape de hârtie', marca: 'Paris', stoc: 32 },
+    { denumire_produs: 'Soluție de degresat', marca: 'CIF', stoc: 42 },
+    { denumire_produs: 'Cloramină', marca: 'Biclosol', stoc: 30 },
+    { denumire_produs: 'Spirt', marca: 'Mona', stoc: 44 },
+    { denumire_produs: 'Detergent pentru pardoseli', marca: 'Promax', stoc: 12 },
+    { denumire_produs: 'Hârtie igienică', marca: 'Pariss', stoc: 691 },
+    { denumire_produs: 'Pamperși', marca: 'Senny', stoc: 775 },
+    { denumire_produs: 'Saci de gunoi', marca: 'Snick', stoc: 16 },
+];
+
+export async function ruleazaSeedCuratenie(gestiuneId, locatie) {
+    if (localStorage.getItem(SEED_CURATENIE_FLAG)) return;
+
+    for (let i = 0; i < SEED_CURATENIE.length; i++) {
+        const { denumire_produs, marca, stoc } = SEED_CURATENIE[i];
+        const produs = await adaugaProdus({
+            id: `seed-curatenie-${i}`,
+            denumire_produs,
+            marca,
+            unitate_masura: 'Buc',
+            poza_url: '',
+        });
+        await ajusteazaStoc(gestiuneId, locatie, produs.id, stoc);
+    }
+
+    localStorage.setItem(SEED_CURATENIE_FLAG, '1');
+}
+
 export async function getProduseCuStoc(gestiuneId, locatie) {
     const produse = await getProduse();
     return Promise.all(

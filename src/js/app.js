@@ -1,5 +1,5 @@
 // app.js - Creierul aplicației Antigravity
-import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc } from '../db/local-db.js';
+import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie } from '../db/local-db.js';
 import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, STRUCTURA_GESTIUNI } from './ui.js';
 
 let dbInstance = null;
@@ -15,6 +15,8 @@ const elDetaliuPoza = document.getElementById('detaliu-poza-produs');
 const elDetaliuNume = document.getElementById('detaliu-nume-produs');
 const elDetaliuMarca = document.getElementById('detaliu-marca-produs');
 const elDetaliuStoc = document.getElementById('detaliu-stoc-actual');
+
+const elBtnSchimbaPoza = document.getElementById('btn-schimba-poza');
 
 const elOpIntrare = document.getElementById('op-intrare');
 const elOpIesire = document.getElementById('op-iesire');
@@ -58,6 +60,20 @@ async function deschideOperatie(produsId) {
     elInputExpirare.value = '';
     await afiseazaDetaliiProdus(produs);
     comutaEcran('ecran-operatie');
+}
+
+async function schimbaPozaProdusCurent() {
+    if (!produsCurent) return;
+    let poza_url = (prompt('URL poză (http(s) sau imagine):', produsCurent.poza_url || '') || '').trim();
+    if (poza_url && !esteUrlImagineValid(poza_url)) {
+        alert('URL de poză invalid (trebuie să fie http(s) sau imagine), a fost ignorat.');
+        return;
+    }
+
+    const { stoc, ...produsFaraStoc } = produsCurent;
+    produsCurent = await adaugaProdus({ ...produsFaraStoc, poza_url });
+    produsCurent.stoc = stoc;
+    await afiseazaDetaliiProdus(produsCurent);
 }
 
 function selecteazaOperatie(tip) {
@@ -136,6 +152,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         // 1. Pornim motorul bazei de date interne (Offline-First)
         dbInstance = await initLocalDB();
+        await ruleazaSeedCuratenie('1', 'Produse de curățenie');
         console.log('Sistem Antigravity activat. Baza de date locală funcționează perfect.');
     } catch (error) {
         console.error('Eroare la aprinderea motorului local:', error);
@@ -177,6 +194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     elBtnAdaugaProdusNou.addEventListener('click', adaugaProdusNou);
 
     // 3d. Operația de intrare/ieșire stoc
+    elBtnSchimbaPoza.addEventListener('click', schimbaPozaProdusCurent);
     elOpIntrare.addEventListener('click', () => selecteazaOperatie('intrare'));
     elOpIesire.addEventListener('click', () => selecteazaOperatie('iesire'));
     elBtnValideaza.addEventListener('click', valideazaMiscare);
