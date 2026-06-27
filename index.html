@@ -157,7 +157,7 @@
 
         <div id="modal-editare" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.35)">
             <div class="neu-card p-5 space-y-3 w-full max-w-sm">
-                <h3 class="font-bold text-center">Editează produsul</h3>
+                <h3 id="modal-editare-titlu" class="font-bold text-center">Editează produsul</h3>
                 <div class="flex items-center space-x-3">
                     <div class="relative flex-shrink-0">
                         <div id="edit-poza" class="w-16 h-16 neu-icon-badge overflow-hidden bg-cover bg-center"></div>
@@ -191,6 +191,18 @@
                     <button id="edit-anuleaza" class="neu-card text-gray-500 font-bold py-3 transition">Anulează</button>
                 </div>
                 <button id="edit-sterge" class="w-full text-rose-500 text-sm font-semibold py-2 transition">Șterge produsul</button>
+            </div>
+        </div>
+
+        <div id="modal-input" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.35)">
+            <div class="neu-card p-5 space-y-3 w-full max-w-sm">
+                <h3 id="modal-input-titlu" class="font-bold text-center">Titlu</h3>
+                <input id="modal-input-camp" class="w-full rounded-xl p-3 text-center font-semibold">
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                    <button id="modal-input-ok" class="neu-btn-circular text-blue-500 font-bold py-3 transition">Salvează</button>
+                    <button id="modal-input-anuleaza" class="neu-card text-gray-500 font-bold py-3 transition">Anulează</button>
+                </div>
+                <button id="modal-input-sterge" class="w-full text-rose-500 text-sm font-semibold py-2 transition hidden">Șterge</button>
             </div>
         </div>
 

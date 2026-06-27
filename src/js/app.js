@@ -92,6 +92,17 @@ const elEditCantitate = document.getElementById('edit-cantitate');
 const elEditSalveaza = document.getElementById('edit-salveaza');
 const elEditAnuleaza = document.getElementById('edit-anuleaza');
 const elEditSterge = document.getElementById('edit-sterge');
+const elModalEditareTitlu = document.getElementById('modal-editare-titlu');
+
+const elModalInput = document.getElementById('modal-input');
+const elModalInputTitlu = document.getElementById('modal-input-titlu');
+const elModalInputCamp = document.getElementById('modal-input-camp');
+const elModalInputOk = document.getElementById('modal-input-ok');
+const elModalInputAnuleaza = document.getElementById('modal-input-anuleaza');
+const elModalInputSterge = document.getElementById('modal-input-sterge');
+
+let modEditare = 'edit';     // 'edit' sau 'nou'
+let rezolvaModalInput = null; // callback pentru promisiunea modalului generic
 
 let produsEditat = null;
 let pozaEditataTemp = null; // null = poza neschimbată; string = data URL nou
@@ -135,7 +146,7 @@ async function salveazaInventarProdusCurent() {
     if (!produsCurent) return;
     const stocConstatat = parseFloat(elInputStocInventar.value);
     if (isNaN(stocConstatat) || stocConstatat < 0) {
-        alert('Introdu un stoc existent valid.');
+        await modalNotifica('Introdu un stoc existent valid.');
         return;
     }
     const dataInventar = elInputDataInventar.value || new Date().toISOString().slice(0, 10);
@@ -209,22 +220,12 @@ async function incarcaPozaSelectata(e) {
         await afiseazaDetaliiProdus(produsCurent);
     } catch (err) {
         console.error('Eroare la încărcarea pozei:', err);
-        alert('Nu am putut încărca poza. Încearcă altă imagine.');
+        await modalNotifica('Nu am putut încărca poza. Încearcă altă imagine.');
     }
 }
 
 async function editeazaProdusCurent() {
-    if (!produsCurent) return;
-    const denumire_produs = (prompt('Denumire produs:', produsCurent.denumire_produs) || '').trim();
-    if (!denumire_produs) return;
-    const marca = (prompt('Marcă (opțional):', produsCurent.marca || '') || '').trim();
-    const unitate_masura = (prompt('Unitate de măsură:', produsCurent.unitate_masura || 'Buc') || 'Buc').trim();
-
-    const { stoc, ...produsFaraStoc } = produsCurent;
-    produsCurent = await adaugaProdus({ ...produsFaraStoc, denumire_produs, marca, unitate_masura });
-    produsCurent.stoc = stoc;
-    document.getElementById('titlu-aplicatie').innerText = produsCurent.denumire_produs;
-    await afiseazaDetaliiProdus(produsCurent);
+    if (produsCurent) await deschideEditare(produsCurent.id);
 }
 
 // --- Editare rapidă din căsuța produsului (denumire, marcă, unitate, cantitate, poză) ---
@@ -238,14 +239,33 @@ async function deschideEditare(produsId) {
     const produs = produse.find(p => p.id === produsId);
     if (!produs) return;
 
+    modEditare = 'edit';
     produsEditat = produs;
     pozaEditataTemp = null;
+    elModalEditareTitlu.textContent = 'Editează produsul';
+    elEditSterge.classList.remove('hidden');
     elEditNume.value = produs.denumire_produs || '';
     elEditMarca.value = produs.marca || '';
     elEditUnitate.value = produs.unitate_masura || 'Buc';
     elEditCantitate.value = produs.stoc ?? 0;
     setBackgroundPoza(elEditPoza, produs.poza_url);
     elModalEditare.classList.remove('hidden');
+}
+
+function deschideAdaugaProdus() {
+    if (!gestiuneCurenta || !locatieCurenta) return;
+    modEditare = 'nou';
+    produsEditat = null;
+    pozaEditataTemp = null;
+    elModalEditareTitlu.textContent = 'Adaugă produs';
+    elEditSterge.classList.add('hidden');
+    elEditNume.value = '';
+    elEditMarca.value = '';
+    elEditUnitate.value = 'Buc';
+    elEditCantitate.value = 0;
+    setBackgroundPoza(elEditPoza, '');
+    elModalEditare.classList.remove('hidden');
+    elEditNume.focus();
 }
 
 function inchideEditare() {
@@ -262,35 +282,42 @@ async function incarcaPozaEditare(e) {
         setBackgroundPoza(elEditPoza, pozaEditataTemp);
     } catch (err) {
         console.error('Eroare la încărcarea pozei:', err);
-        alert('Nu am putut încărca poza. Încearcă altă imagine.');
+        await modalNotifica('Nu am putut încărca poza. Încearcă altă imagine.');
     }
 }
 
 async function salveazaEditare() {
-    if (!produsEditat) return;
     const denumire_produs = elEditNume.value.trim();
     if (!denumire_produs) {
-        alert('Denumirea nu poate fi goală.');
+        elEditNume.focus();
         return;
     }
     const cantitate = parseFloat(elEditCantitate.value);
     if (isNaN(cantitate) || cantitate < 0) {
-        alert('Introdu o cantitate validă.');
+        elEditCantitate.focus();
         return;
     }
+    const marca = elEditMarca.value.trim();
+    const unitate_masura = elEditUnitate.value.trim() || 'Buc';
 
-    const { stoc, ...produsFaraStoc } = produsEditat;
-    const poza_url = pozaEditataTemp !== null ? pozaEditataTemp : (produsEditat.poza_url || '');
-    await adaugaProdus({
-        ...produsFaraStoc,
-        denumire_produs,
-        marca: elEditMarca.value.trim(),
-        unitate_masura: elEditUnitate.value.trim() || 'Buc',
-        poza_url,
-    });
-
-    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
-    await seteazaStoc(gestiuneCurenta, locatieCurenta, produsEditat.id, cantitate, operator);
+    if (modEditare === 'nou') {
+        const id = `p${Date.now()}`;
+        await adaugaProdus({
+            id, denumire_produs, marca, unitate_masura,
+            poza_url: pozaEditataTemp || '',
+            gestiuneId: gestiuneCurenta,
+            locatie: locatieCurenta,
+        });
+        const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
+        await seteazaStoc(gestiuneCurenta, locatieCurenta, id, cantitate, operator);
+    } else {
+        if (!produsEditat) return;
+        const { stoc, ...produsFaraStoc } = produsEditat;
+        const poza_url = pozaEditataTemp !== null ? pozaEditataTemp : (produsEditat.poza_url || '');
+        await adaugaProdus({ ...produsFaraStoc, denumire_produs, marca, unitate_masura, poza_url });
+        const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
+        await seteazaStoc(gestiuneCurenta, locatieCurenta, produsEditat.id, cantitate, operator);
+    }
 
     inchideEditare();
     await rerandeazaProduse();
@@ -298,10 +325,69 @@ async function salveazaEditare() {
 
 async function stergeProdusEditat() {
     if (!produsEditat) return;
-    if (!confirm(`Ștergi produsul „${produsEditat.denumire_produs}”?`)) return;
+    const ok = await modalConfirma(`Ștergi produsul „${produsEditat.denumire_produs}”?`);
+    if (!ok) return;
     await stergeProdus(gestiuneCurenta, locatieCurenta, produsEditat.id);
     inchideEditare();
     await rerandeazaProduse();
+}
+
+// --- Modal generic de input (înlocuiește prompt-urile native) ---
+// Întoarce: { actiune:'salveaza', valoare } | { actiune:'sterge' } | null
+function modalInput(titlu, valoareInitiala = '', optiuni = {}) {
+    return new Promise(resolve => {
+        elModalInputTitlu.textContent = titlu;
+        elModalInputCamp.value = valoareInitiala;
+        elModalInputSterge.classList.toggle('hidden', !optiuni.permiteStergere);
+        elModalInput.classList.remove('hidden');
+        elModalInputCamp.focus();
+        rezolvaModalInput = resolve;
+    });
+}
+
+function inchideModalInput(rezultat) {
+    elModalInput.classList.add('hidden');
+    const r = rezolvaModalInput;
+    rezolvaModalInput = null;
+    if (r) r(rezultat);
+}
+
+// Notificare simplă în stilul aplicației (înlocuiește alert() nativ)
+function modalNotifica(mesaj) {
+    return new Promise(resolve => {
+        elModalInputTitlu.textContent = mesaj;
+        elModalInputCamp.classList.add('hidden');
+        elModalInputSterge.classList.add('hidden');
+        elModalInputAnuleaza.classList.add('hidden');
+        elModalInputOk.textContent = 'OK';
+        elModalInput.classList.remove('hidden');
+        rezolvaModalInput = () => {
+            elModalInputCamp.classList.remove('hidden');
+            elModalInputAnuleaza.classList.remove('hidden');
+            elModalInputOk.textContent = 'Salvează';
+            resolve();
+        };
+    });
+}
+
+// Confirmare în stilul aplicației (înlocuiește confirm() nativ)
+function modalConfirma(mesaj) {
+    return new Promise(resolve => {
+        elModalInputTitlu.textContent = mesaj;
+        elModalInputCamp.classList.add('hidden');
+        elModalInputSterge.classList.add('hidden');
+        elModalInputAnuleaza.classList.remove('hidden');
+        elModalInputOk.textContent = 'Da';
+        elModalInputAnuleaza.textContent = 'Nu';
+        elModalInput.classList.remove('hidden');
+        rezolvaModalInput = (rez) => {
+            // restaurăm aspectul implicit pentru următoarea folosire
+            elModalInputCamp.classList.remove('hidden');
+            elModalInputOk.textContent = 'Salvează';
+            elModalInputAnuleaza.textContent = 'Anulează';
+            resolve(rez && rez.actiune === 'salveaza');
+        };
+    });
 }
 
 function selecteazaOperatie(tip) {
@@ -314,17 +400,17 @@ function selecteazaOperatie(tip) {
 async function valideazaMiscare() {
     const cantitate = parseFloat(elInputCantitate.value);
     if (!cantitate || cantitate <= 0) {
-        alert('Introdu o cantitate validă.');
+        await modalNotifica('Introdu o cantitate validă.');
         return;
     }
     if (!tipOperatieCurenta) {
-        alert('Selectează tipul mișcării (Intrare/Ieșire).');
+        await modalNotifica('Selectează tipul mișcării (Intrare/Ieșire).');
         return;
     }
 
     const stocActual = await getStoc(gestiuneCurenta, locatieCurenta, produsCurent.id);
     if (tipOperatieCurenta === 'iesire' && cantitate > stocActual) {
-        alert(`Stoc insuficient. Stoc actual: ${stocActual}.`);
+        await modalNotifica(`Stoc insuficient. Stoc actual: ${stocActual}.`);
         return;
     }
 
@@ -551,26 +637,6 @@ function initializeazaStatusRetea() {
     actualizeaza();
 }
 
-async function adaugaProdusNou() {
-    if (!gestiuneCurenta || !locatieCurenta) return;
-    const denumire_produs = prompt('Denumire produs:');
-    if (!denumire_produs || !denumire_produs.trim()) return;
-    const marca = prompt('Marcă (opțional):') || '';
-    const unitate_masura = prompt('Unitate de măsură (ex: Buc, Kg, L):', 'Buc') || 'Buc';
-
-    await adaugaProdus({
-        id: `p${Date.now()}`,
-        denumire_produs: denumire_produs.trim(),
-        marca: marca.trim(),
-        unitate_masura: unitate_masura.trim(),
-        poza_url: '',
-        gestiuneId: gestiuneCurenta,
-        locatie: locatieCurenta,
-    });
-
-    await rerandeazaProduse();
-}
-
 // --- Editarea structurii (gestiuni și sectoare) direct din aplicație ---
 
 function reincarcaGestiuni() {
@@ -584,16 +650,17 @@ async function editeazaGestiune(id) {
     const structura = getStructura();
     const g = structura[id];
     if (!g) return;
-    const optiune = prompt(`Editează „${g.nume}”:\n• scrie un nume nou pentru redenumire\n• scrie STERGE ca să elimini gestiunea cu tot ce conține`, g.nume);
-    if (optiune === null) return;
-    const val = optiune.trim();
-    if (!val) return;
-    if (val.toUpperCase() === 'STERGE') {
-        if (!confirm(`Sigur ștergi gestiunea „${g.nume}” și toate datele ei?`)) return;
+    const rez = await modalInput(`Editează gestiunea`, g.nume, { permiteStergere: true });
+    if (!rez) return;
+    if (rez.actiune === 'sterge') {
+        const ok = await modalConfirma(`Ștergi gestiunea „${g.nume}” și toate datele ei?`);
+        if (!ok) return;
         delete structura[id];
         salveazaStructura(structura);
         await stergeDateGestiune(id);
     } else {
+        const val = rez.valoare.trim();
+        if (!val) return;
         g.nume = val;
         salveazaStructura(structura);
     }
@@ -601,7 +668,9 @@ async function editeazaGestiune(id) {
 }
 
 async function adaugaGestiune() {
-    const nume = (prompt('Nume gestiune nouă:') || '').trim();
+    const rez = await modalInput('Gestiune nouă', '');
+    if (!rez || rez.actiune !== 'salveaza') return;
+    const nume = rez.valoare.trim();
     if (!nume) return;
     const structura = getStructura();
     const ids = Object.keys(structura).map(Number).filter(n => !isNaN(n));
@@ -617,17 +686,18 @@ async function editeazaLocatie(gestiuneId, nume) {
     if (!g) return;
     const idx = g.locatii.findIndex(l => l.nume === nume);
     if (idx < 0) return;
-    const optiune = prompt(`Editează sectorul „${nume}”:\n• scrie un nume nou pentru redenumire\n• scrie STERGE ca să-l elimini cu tot ce conține`, nume);
-    if (optiune === null) return;
-    const val = optiune.trim();
-    if (!val) return;
-    if (val.toUpperCase() === 'STERGE') {
-        if (!confirm(`Sigur ștergi sectorul „${nume}” și toate produsele lui?`)) return;
+    const rez = await modalInput('Editează sectorul', nume, { permiteStergere: true });
+    if (!rez) return;
+    if (rez.actiune === 'sterge') {
+        const ok = await modalConfirma(`Ștergi sectorul „${nume}” și toate produsele lui?`);
+        if (!ok) return;
         g.locatii.splice(idx, 1);
         salveazaStructura(structura);
         await stergeDateLocatie(gestiuneId, nume);
-    } else if (val !== nume) {
-        if (g.locatii.some(l => l.nume === val)) { alert('Există deja un sector cu acest nume.'); return; }
+    } else {
+        const val = rez.valoare.trim();
+        if (!val || val === nume) return;
+        if (g.locatii.some(l => l.nume === val)) { await modalConfirma('Există deja un sector cu acest nume.'); return; }
         g.locatii[idx].nume = val;
         salveazaStructura(structura);
         await redenumesteLocatie(gestiuneId, nume, val);
@@ -636,12 +706,14 @@ async function editeazaLocatie(gestiuneId, nume) {
 }
 
 async function adaugaLocatie(gestiuneId) {
-    const nume = (prompt('Nume sector nou:') || '').trim();
+    const rez = await modalInput('Sector nou', '');
+    if (!rez || rez.actiune !== 'salveaza') return;
+    const nume = rez.valoare.trim();
     if (!nume) return;
     const structura = getStructura();
     const g = structura[gestiuneId];
     if (!g) return;
-    if (g.locatii.some(l => l.nume === nume)) { alert('Există deja un sector cu acest nume.'); return; }
+    if (g.locatii.some(l => l.nume === nume)) { await modalConfirma('Există deja un sector cu acest nume.'); return; }
     g.locatii.push({ nume, icon: 'generic' });
     salveazaStructura(structura);
     reincarcaLocatii();
@@ -731,7 +803,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 3c. Căutare rapidă + adăugare produs nou în ghid
     elCautareRapida.addEventListener('input', rerandeazaProduse);
-    elBtnAdaugaProdusNou.addEventListener('click', adaugaProdusNou);
+    elBtnAdaugaProdusNou.addEventListener('click', deschideAdaugaProdus);
+
+    // Modal generic de input/confirmare (înlocuiește prompt/confirm native)
+    elModalInputOk.addEventListener('click', () => inchideModalInput({ actiune: 'salveaza', valoare: elModalInputCamp.value }));
+    elModalInputAnuleaza.addEventListener('click', () => inchideModalInput(null));
+    elModalInputSterge.addEventListener('click', () => inchideModalInput({ actiune: 'sterge' }));
+    elModalInput.addEventListener('click', (e) => { if (e.target === elModalInput) inchideModalInput(null); });
+    elModalInputCamp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') inchideModalInput({ actiune: 'salveaza', valoare: elModalInputCamp.value });
+    });
 
     // 3d. Operația de intrare/ieșire stoc
     elBtnSchimbaPoza.addEventListener('click', schimbaPozaProdusCurent);
