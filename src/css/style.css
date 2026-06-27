@@ -96,6 +96,12 @@ input:focus {
                 inset -7px -7px 14px var(--shadow-light) !important;
 }
 
+/* Input de căutare găzduit într-un .neu-card propriu: nu mai are nevoie de scobitura proprie */
+.neu-card input {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
 /* Previne zoom-ul automat enervant pe iPhone */
 input, select, button {
     font-size: 16px !important;
