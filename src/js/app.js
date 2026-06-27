@@ -1,6 +1,6 @@
 // app.js - Creierul aplicației Antigravity
 import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc } from '../db/local-db.js';
-import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid } from './ui.js';
+import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, STRUCTURA_GESTIUNI } from './ui.js';
 
 let dbInstance = null;
 let gestiuneCurenta = null;
@@ -25,7 +25,7 @@ const elInputExpirare = document.getElementById('input-expirare');
 const elBtnValideaza = document.getElementById('btn-valideaza-miscare');
 
 async function rerandeazaProduse() {
-    const numeGestiune = document.getElementById('titlu-aplicatie').innerText.split(' → ')[0];
+    const numeGestiune = STRUCTURA_GESTIUNI[gestiuneCurenta].nume;
     const filtru = elCautareRapida.value.trim().toLowerCase();
 
     const produseInstanta = (await getProduseCuStoc(gestiuneCurenta, locatieCurenta)).filter(p =>
@@ -189,11 +189,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             comutaEcran('ecran-gestiuni');
             gestiuneCurenta = null;
         } else if (ecranActiv === 'ecran-produse') {
-            comutaEcran('ecran-locatii');
             locatieCurenta = null;
+            randeazaLocatii(gestiuneCurenta);
         } else if (ecranActiv === 'ecran-operatie') {
-            comutaEcran('ecran-produse');
             produsCurent = null;
+            elCautareRapida.value = '';
+            rerandeazaProduse();
         }
     });
 });
