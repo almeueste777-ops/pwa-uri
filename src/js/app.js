@@ -1,5 +1,5 @@
 // app.js - Creierul aplicației Antigravity
-import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar } from '../db/local-db.js';
+import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus } from '../db/local-db.js';
 import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, STRUCTURA_GESTIUNI } from './ui.js';
 
 let dbInstance = null;
@@ -19,7 +19,7 @@ const ROLURI = {
     'Director':       { pin: '5555', acces: 'total' },
     'Manager':        { pin: '6666', acces: { gestiuni: ['2'] } },
     'Magazioner':     { pin: '2222', acces: 'total' },
-    'Asistentă șefă': { pin: '3333', acces: { locatii: [{ gestiune: '2', locatie: 'Medicamente' }] } },
+    'Asistentă șefă': { pin: '3333', acces: { gestiuni: ['2'] } },
     'Asistentă':      { pin: '4444', acces: { locatii: [{ gestiune: '2', locatie: 'Medicamente' }] } },
 };
 
@@ -66,6 +66,21 @@ const elBtnSalveazaInventar = document.getElementById('btn-salveaza-inventar');
 const elBtnSchimbaPoza = document.getElementById('btn-schimba-poza');
 const elInputPozaFisier = document.getElementById('input-poza-fisier');
 const elBtnEditeazaProdus = document.getElementById('btn-editeaza-produs');
+
+const elModalEditare = document.getElementById('modal-editare');
+const elEditPoza = document.getElementById('edit-poza');
+const elEditBtnPoza = document.getElementById('edit-btn-poza');
+const elEditInputPoza = document.getElementById('edit-input-poza');
+const elEditNume = document.getElementById('edit-nume');
+const elEditMarca = document.getElementById('edit-marca');
+const elEditUnitate = document.getElementById('edit-unitate');
+const elEditCantitate = document.getElementById('edit-cantitate');
+const elEditSalveaza = document.getElementById('edit-salveaza');
+const elEditAnuleaza = document.getElementById('edit-anuleaza');
+const elEditSterge = document.getElementById('edit-sterge');
+
+let produsEditat = null;
+let pozaEditataTemp = null; // null = poza neschimbată; string = data URL nou
 
 const elOpIntrare = document.getElementById('op-intrare');
 const elOpIesire = document.getElementById('op-iesire');
@@ -196,6 +211,83 @@ async function editeazaProdusCurent() {
     produsCurent.stoc = stoc;
     document.getElementById('titlu-aplicatie').innerText = produsCurent.denumire_produs;
     await afiseazaDetaliiProdus(produsCurent);
+}
+
+// --- Editare rapidă din căsuța produsului (denumire, marcă, unitate, cantitate, poză) ---
+
+function setBackgroundPoza(el, poza_url) {
+    el.style.backgroundImage = poza_url && esteUrlImagineValid(poza_url) ? `url("${poza_url}")` : '';
+}
+
+async function deschideEditare(produsId) {
+    const produse = await getProduseCuStoc(gestiuneCurenta, locatieCurenta);
+    const produs = produse.find(p => p.id === produsId);
+    if (!produs) return;
+
+    produsEditat = produs;
+    pozaEditataTemp = null;
+    elEditNume.value = produs.denumire_produs || '';
+    elEditMarca.value = produs.marca || '';
+    elEditUnitate.value = produs.unitate_masura || 'Buc';
+    elEditCantitate.value = produs.stoc ?? 0;
+    setBackgroundPoza(elEditPoza, produs.poza_url);
+    elModalEditare.classList.remove('hidden');
+}
+
+function inchideEditare() {
+    elModalEditare.classList.add('hidden');
+    produsEditat = null;
+    pozaEditataTemp = null;
+}
+
+async function incarcaPozaEditare(e) {
+    const fisier = e.target.files && e.target.files[0];
+    if (!fisier) return;
+    try {
+        pozaEditataTemp = await comprimaImagine(fisier);
+        setBackgroundPoza(elEditPoza, pozaEditataTemp);
+    } catch (err) {
+        console.error('Eroare la încărcarea pozei:', err);
+        alert('Nu am putut încărca poza. Încearcă altă imagine.');
+    }
+}
+
+async function salveazaEditare() {
+    if (!produsEditat) return;
+    const denumire_produs = elEditNume.value.trim();
+    if (!denumire_produs) {
+        alert('Denumirea nu poate fi goală.');
+        return;
+    }
+    const cantitate = parseFloat(elEditCantitate.value);
+    if (isNaN(cantitate) || cantitate < 0) {
+        alert('Introdu o cantitate validă.');
+        return;
+    }
+
+    const { stoc, ...produsFaraStoc } = produsEditat;
+    const poza_url = pozaEditataTemp !== null ? pozaEditataTemp : (produsEditat.poza_url || '');
+    await adaugaProdus({
+        ...produsFaraStoc,
+        denumire_produs,
+        marca: elEditMarca.value.trim(),
+        unitate_masura: elEditUnitate.value.trim() || 'Buc',
+        poza_url,
+    });
+
+    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
+    await seteazaStoc(gestiuneCurenta, locatieCurenta, produsEditat.id, cantitate, operator);
+
+    inchideEditare();
+    await rerandeazaProduse();
+}
+
+async function stergeProdusEditat() {
+    if (!produsEditat) return;
+    if (!confirm(`Ștergi produsul „${produsEditat.denumire_produs}”?`)) return;
+    await stergeProdus(gestiuneCurenta, locatieCurenta, produsEditat.id);
+    inchideEditare();
+    await rerandeazaProduse();
 }
 
 function selecteazaOperatie(tip) {
@@ -369,11 +461,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3b. Click pe un Produs -> ecranul de operație (Intrare/Ieșire)
     // Aceeași delegare de evenimente, cardurile de produs sunt generate dinamic
     document.getElementById('grid-produse').addEventListener('click', async (e) => {
+        const btnEdit = e.target.closest('.btn-edit-card');
+        if (btnEdit) {
+            e.stopPropagation();
+            await deschideEditare(btnEdit.dataset.produsId);
+            return;
+        }
         const cardProdus = e.target.closest('.card-produs');
         if (cardProdus) {
             await deschideOperatie(cardProdus.dataset.produsId);
         }
     });
+
+    // Modal de editare rapidă (din căsuța produsului)
+    elEditBtnPoza.addEventListener('click', () => { elEditInputPoza.value = ''; elEditInputPoza.click(); });
+    elEditInputPoza.addEventListener('change', incarcaPozaEditare);
+    elEditSalveaza.addEventListener('click', salveazaEditare);
+    elEditAnuleaza.addEventListener('click', inchideEditare);
+    elEditSterge.addEventListener('click', stergeProdusEditat);
+    elModalEditare.addEventListener('click', (e) => { if (e.target === elModalEditare) inchideEditare(); });
 
     // 3c. Căutare rapidă + adăugare produs nou în ghid
     elCautareRapida.addEventListener('input', rerandeazaProduse);

@@ -141,6 +141,20 @@ export async function ajusteazaStoc(gestiuneId, locatie, produsId, delta, ultima
     return nou;
 }
 
+export async function seteazaStoc(gestiuneId, locatie, produsId, valoare, ultimaOperatiune = null) {
+    const cheie = cheieStoc(gestiuneId, locatie, produsId);
+    const store = tranzactie(STORE_STOCURI, 'readwrite');
+    const inregistrare = await promisifica(store.get(cheie));
+    const nou = Math.max(0, valoare);
+    await promisifica(tranzactie(STORE_STOCURI, 'readwrite').put({ ...inregistrare, cheie, valoare: nou, ultimaOperatiune }));
+    return nou;
+}
+
+export async function stergeProdus(gestiuneId, locatie, produsId) {
+    await promisifica(tranzactie(STORE_PRODUSE, 'readwrite').delete(produsId));
+    await promisifica(tranzactie(STORE_STOCURI, 'readwrite').delete(cheieStoc(gestiuneId, locatie, produsId)));
+}
+
 export async function inregistreazaInventar(gestiuneId, locatie, produsId, stocConstatat, dataInventar) {
     const cheie = cheieStoc(gestiuneId, locatie, produsId);
     const store = tranzactie(STORE_STOCURI, 'readwrite');

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'antigravity-wms-v11';
+const CACHE_NAME = 'antigravity-wms-v12';
 
 // Toate căile sunt relative la scope-ul Service Worker-ului (rădăcina site-ului),
 // ca aplicația să funcționeze și când e găzduită într-un subdirector (ex: GitHub Pages).

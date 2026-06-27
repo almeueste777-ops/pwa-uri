@@ -115,6 +115,45 @@
             </div>
         </section>
 
+        <div id="modal-editare" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.35)">
+            <div class="neu-card p-5 space-y-3 w-full max-w-sm">
+                <h3 class="font-bold text-center">Editează produsul</h3>
+                <div class="flex items-center space-x-3">
+                    <div class="relative flex-shrink-0">
+                        <div id="edit-poza" class="w-16 h-16 neu-icon-badge overflow-hidden bg-cover bg-center"></div>
+                        <button id="edit-btn-poza" title="Adaugă/schimbă poza" class="neu-btn-circular w-7 h-7 flex items-center justify-center text-gray-500 absolute -bottom-1 -right-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </button>
+                        <input type="file" id="edit-input-poza" accept="image/*" class="hidden">
+                    </div>
+                    <p class="flex-1 text-xs text-gray-500">Apasă pe cameră ca să adaugi sau schimbi poza produsului.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">DENUMIRE</label>
+                    <input id="edit-nume" class="w-full rounded-xl p-3">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">MARCĂ</label>
+                        <input id="edit-marca" class="w-full rounded-xl p-3">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">UNITATE</label>
+                        <input id="edit-unitate" class="w-full rounded-xl p-3">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">CANTITATE (stoc)</label>
+                    <input type="number" id="edit-cantitate" step="0.01" class="w-full rounded-xl p-3 text-center font-bold">
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                    <button id="edit-salveaza" class="neu-btn-circular text-blue-500 font-bold py-3 transition">Salvează</button>
+                    <button id="edit-anuleaza" class="neu-card text-gray-500 font-bold py-3 transition">Anulează</button>
+                </div>
+                <button id="edit-sterge" class="w-full text-rose-500 text-sm font-semibold py-2 transition">Șterge produsul</button>
+            </div>
+        </div>
+
     </main>
 
     <script type="module" src="./src/js/app.js"></script>
