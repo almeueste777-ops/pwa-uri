@@ -32,10 +32,7 @@
 
         <section id="ecran-login" class="neu-card p-6 space-y-4 sm:max-w-md mx-auto">
             <h2 class="text-lg font-bold text-center mb-2">Selectează rolul și introdu PIN-ul</h2>
-            <div class="grid grid-cols-2 gap-3">
-                <button id="rol-magazioner" data-rol="Magazioner" class="card-rol neu-card py-4 font-bold text-gray-600 transition">Magazioner</button>
-                <button id="rol-gestionar" data-rol="Gestionar" class="card-rol neu-card py-4 font-bold text-gray-600 transition">Gestionar</button>
-            </div>
+            <div id="lista-roluri" class="grid grid-cols-2 gap-3"></div>
             <input type="password" id="input-pin-login" inputmode="numeric" placeholder="PIN" class="w-full rounded-xl p-3 text-center text-xl font-bold hidden">
             <button id="btn-confirma-login" class="neu-btn-circular w-full text-blue-500 font-bold py-4 transition hidden">Intră în aplicație</button>
             <p id="eroare-login" class="text-rose-500 text-sm text-center hidden">PIN incorect.</p>

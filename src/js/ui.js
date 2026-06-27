@@ -77,12 +77,13 @@ export function comutaEcran(idEcran) {
 }
 
 // Generează butoanele mari neumorfice pentru cele două gestiuni
-export function randeazaEcraneGestiuni() {
+export function randeazaEcraneGestiuni(poateAccesaGestiune = () => true) {
     const container = document.getElementById('ecran-gestiuni');
     if (!container) return;
     container.innerHTML = '';
 
     [1, 2].forEach(id => {
+        if (!poateAccesaGestiune(String(id))) return;
         const gestiune = STRUCTURA_GESTIUNI[id];
         const card = document.createElement('div');
         card.className = 'card-gestiune neu-card p-6 flex items-center justify-between cursor-pointer';
@@ -103,14 +104,14 @@ export function randeazaEcraneGestiuni() {
 }
 
 // Generează butoanele pentru locațiile fizice în funcție de gestiunea aleasă
-export function randeazaLocatii(gestiuneId) {
+export function randeazaLocatii(gestiuneId, poateAccesaLocatie = () => true) {
     const container = document.getElementById('ecran-locatii');
     const dateGestiune = STRUCTURA_GESTIUNI[gestiuneId];
 
     document.getElementById('titlu-aplicatie').innerText = dateGestiune.nume;
     container.innerHTML = '';
 
-    dateGestiune.locatii.forEach((locatie, index) => {
+    dateGestiune.locatii.filter(l => poateAccesaLocatie(l.nume)).forEach((locatie, index) => {
         const card = document.createElement('div');
         card.style.animationDelay = `${index * 0.05}s`;
         card.className = 'card-locatie neu-card p-4 flex items-center cursor-pointer slide-up-fade';

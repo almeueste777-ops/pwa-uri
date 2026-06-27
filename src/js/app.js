@@ -8,11 +8,43 @@ let locatieCurenta = null;
 let produsCurent = null;
 let tipOperatieCurenta = null;
 let rolSelectat = null;
+let accesCurent = null;
 
-const PIN_ROLURI = { Magazioner: '1234', Gestionar: '9999' };
+// Rolurile aplicației: fiecare are un PIN și un domeniu de acces.
+// acces = 'total' (vede tot) sau { gestiuni: [...ids], locatii: [{gestiune, locatie}] }.
+// CRPV are id '2', Mănăstire id '1'.
+const ROLURI = {
+    'Stareț':         { pin: '0000', acces: 'total' },
+    'Econom':         { pin: '1111', acces: 'total' },
+    'Director':       { pin: '5555', acces: 'total' },
+    'Manager':        { pin: '6666', acces: { gestiuni: ['2'] } },
+    'Magazioner':     { pin: '2222', acces: 'total' },
+    'Asistentă șefă': { pin: '3333', acces: { locatii: [{ gestiune: '2', locatie: 'Medicamente' }] } },
+    'Asistentă':      { pin: '4444', acces: { locatii: [{ gestiune: '2', locatie: 'Medicamente' }] } },
+};
+
 const USER_SESSION_KEY = 'antigravity-utilizator-curent';
 
+function poateAccesaGestiune(acces, gestiuneId) {
+    if (acces === 'total') return true;
+    if (!acces) return false;
+    gestiuneId = String(gestiuneId);
+    if ((acces.gestiuni || []).includes(gestiuneId)) return true;
+    if ((acces.locatii || []).some(l => String(l.gestiune) === gestiuneId)) return true;
+    return false;
+}
+
+function poateAccesaLocatie(acces, gestiuneId, locatie) {
+    if (acces === 'total') return true;
+    if (!acces) return false;
+    gestiuneId = String(gestiuneId);
+    if ((acces.gestiuni || []).includes(gestiuneId)) return true;
+    if ((acces.locatii || []).some(l => String(l.gestiune) === gestiuneId && l.locatie === locatie)) return true;
+    return false;
+}
+
 const elEcranLogin = document.getElementById('ecran-login');
+const elListaRoluri = document.getElementById('lista-roluri');
 const elInputPinLogin = document.getElementById('input-pin-login');
 const elBtnConfirmaLogin = document.getElementById('btn-confirma-login');
 const elEroareLogin = document.getElementById('eroare-login');
@@ -206,6 +238,17 @@ function afiseazaUtilizatorCurent(utilizator) {
     elUtilizatorCurent.classList.remove('hidden');
 }
 
+function randeazaRoluri() {
+    elListaRoluri.innerHTML = '';
+    Object.keys(ROLURI).forEach(rol => {
+        const btn = document.createElement('button');
+        btn.className = 'card-rol neu-card py-4 font-bold text-gray-600 transition';
+        btn.dataset.rol = rol;
+        btn.textContent = rol;
+        elListaRoluri.appendChild(btn);
+    });
+}
+
 function selecteazaRolLogin(rol) {
     rolSelectat = rol;
     elInputPinLogin.classList.remove('hidden');
@@ -213,17 +256,28 @@ function selecteazaRolLogin(rol) {
     elEroareLogin.classList.add('hidden');
     elInputPinLogin.value = '';
     elInputPinLogin.focus();
+    document.querySelectorAll('#lista-roluri .card-rol').forEach(b => {
+        b.classList.toggle('text-blue-500', b.dataset.rol === rol);
+    });
+}
+
+function aplicaAcces(utilizator) {
+    rolSelectat = utilizator.rol;
+    accesCurent = (ROLURI[utilizator.rol] || {}).acces ?? null;
+    afiseazaUtilizatorCurent(utilizator);
+    randeazaEcraneGestiuni(id => poateAccesaGestiune(accesCurent, id));
 }
 
 function confirmaLogin() {
     if (!rolSelectat) return;
-    if (elInputPinLogin.value !== PIN_ROLURI[rolSelectat]) {
+    const config = ROLURI[rolSelectat];
+    if (!config || elInputPinLogin.value !== config.pin) {
         elEroareLogin.classList.remove('hidden');
         return;
     }
     const utilizator = { rol: rolSelectat };
     sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(utilizator));
-    afiseazaUtilizatorCurent(utilizator);
+    aplicaAcces(utilizator);
     comutaEcran('ecran-gestiuni');
 }
 
@@ -272,13 +326,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Eroare la aprinderea motorului local:', error);
     }
 
-    // 1b. Verificăm dacă există deja o sesiune activă (rol ales în acest tab), ca utilizatorul
-    // să nu fie pus să introducă PIN-ul la fiecare reîncărcare de pagină.
+    // 1b. Generăm butoanele de rol și verificăm dacă există deja o sesiune activă
+    // (rol ales în acest tab), ca utilizatorul să nu reintroducă PIN-ul la fiecare refresh.
+    randeazaRoluri();
     const utilizatorSalvat = sessionStorage.getItem(USER_SESSION_KEY);
     if (utilizatorSalvat) {
-        const utilizator = JSON.parse(utilizatorSalvat);
-        rolSelectat = utilizator.rol;
-        afiseazaUtilizatorCurent(utilizator);
+        aplicaAcces(JSON.parse(utilizatorSalvat));
         comutaEcran('ecran-gestiuni');
     } else {
         comutaEcran('ecran-login');
@@ -289,15 +342,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (cardRol) selecteazaRolLogin(cardRol.dataset.rol);
     });
     elBtnConfirmaLogin.addEventListener('click', confirmaLogin);
+    elInputPinLogin.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') confirmaLogin();
+    });
 
-    // 2. Desenăm cardurile de gestiune (CRPV / Mănăstire) și legăm click-urile prin delegare,
-    // pentru că butoanele sunt generate dinamic în ui.js
-    randeazaEcraneGestiuni();
+    // 2. Click pe o gestiune (butoanele se generează în aplicaAcces, filtrate pe acces)
     document.getElementById('ecran-gestiuni').addEventListener('click', (e) => {
         const cardGestiune = e.target.closest('.card-gestiune');
         if (cardGestiune) {
             gestiuneCurenta = cardGestiune.dataset.gestiune;
-            randeazaLocatii(gestiuneCurenta);
+            randeazaLocatii(gestiuneCurenta, locatie => poateAccesaLocatie(accesCurent, gestiuneCurenta, locatie));
         }
     });
 
@@ -343,7 +397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             gestiuneCurenta = null;
         } else if (ecranActiv === 'ecran-produse') {
             locatieCurenta = null;
-            randeazaLocatii(gestiuneCurenta);
+            randeazaLocatii(gestiuneCurenta, locatie => poateAccesaLocatie(accesCurent, gestiuneCurenta, locatie));
         } else if (ecranActiv === 'ecran-operatie') {
             produsCurent = null;
             elCautareRapida.value = '';
