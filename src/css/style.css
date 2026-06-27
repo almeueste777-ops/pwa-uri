@@ -48,6 +48,13 @@ h1, h2, h3 {
     transform: scale(0.96);
 }
 
+/* Containere care NU trebuie să se afunde la apăsare (ex: tabelul de registru) */
+.neu-card.fara-apasare:active {
+    box-shadow: 9px 9px 16px var(--shadow-dark),
+               -9px -9px 16px var(--shadow-light);
+    transform: none;
+}
+
 /* Container pentru pictograme (Badge ieșit în relief) */
 .neu-icon-badge {
     background-color: var(--bg-neu);

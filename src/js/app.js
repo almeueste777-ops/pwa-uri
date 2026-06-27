@@ -416,8 +416,7 @@ function construiesteRanduriRegistru() {
             <td class="py-1 px-2 font-semibold text-gray-600 whitespace-nowrap">${zi}</td>
             <td class="py-1 px-1"><input type="number" step="0.01" inputmode="decimal" data-zi="${zi}" data-tip="i" value="${inreg.i ?? ''}" class="inp-registru w-16 rounded-lg p-1.5 text-center text-green-600 font-semibold"></td>
             <td class="py-1 px-1"><input type="number" step="0.01" inputmode="decimal" data-zi="${zi}" data-tip="e" value="${inreg.e ?? ''}" class="inp-registru w-16 rounded-lg p-1.5 text-center text-rose-500 font-semibold"></td>
-            <td class="py-1 px-2 text-right text-gray-400" data-inainte="${zi}"></td>
-            <td class="py-1 px-2 text-right font-semibold text-blue-500" data-dupa="${zi}"></td>
+            <td class="py-1 px-2 text-right font-semibold text-blue-500" data-stoc="${zi}"></td>
         `;
         elCorpRegistru.appendChild(tr);
     }
@@ -430,13 +429,10 @@ function recalculeazaRegistru() {
         const inreg = registruZile[zi] || {};
         const i = Number(inreg.i) || 0;
         const e = Number(inreg.e) || 0;
-        const inainte = running;
-        const dupa = inainte + i - e;
-        running = dupa;
-        const celInainte = elCorpRegistru.querySelector(`[data-inainte="${zi}"]`);
-        const celDupa = elCorpRegistru.querySelector(`[data-dupa="${zi}"]`);
-        if (celInainte) celInainte.textContent = (i || e) ? inainte : '';
-        if (celDupa) celDupa.textContent = (i || e) ? dupa : '';
+        running = running + i - e;
+        // Stocul rămas se calculează singur și se afișează pentru fiecare zi.
+        const celStoc = elCorpRegistru.querySelector(`[data-stoc="${zi}"]`);
+        if (celStoc) celStoc.textContent = running;
     }
     registruStocFinal = running;
     elRegistruInfo.textContent = `Stoc final lună: ${running}`;
