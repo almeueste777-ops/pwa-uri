@@ -1,4 +1,4 @@
-const CACHE_NAME = 'antigravity-wms-v14';
+const CACHE_NAME = 'antigravity-wms-v15';
 
 // Toate căile sunt relative la scope-ul Service Worker-ului (rădăcina site-ului),
 // ca aplicația să funcționeze și când e găzduită într-un subdirector (ex: GitHub Pages).
@@ -35,28 +35,31 @@ self.addEventListener('activate', event => {
     self.clients.claim();
 });
 
+// Strategie NETWORK-FIRST: cerem mereu varianta proaspătă de pe rețea (ca să nu
+// rămână utilizatorii blocați pe cod vechi din cache) și cădem pe cache doar când
+// suntem offline. Astfel actualizările de cod se văd imediat, dar aplicația rămâne
+// funcțională și fără internet.
 self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return;
 
-    event.respondWith(
-        caches.match(event.request).then(raspunsCache => {
-            if (raspunsCache) return raspunsCache;
+    const url = new URL(event.request.url);
+    if (url.origin !== self.location.origin) return; // resursele externe trec normal
 
-            return fetch(event.request)
-                .then(raspunsRetea => {
-                    const clona = raspunsRetea.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clona));
-                    return raspunsRetea;
-                })
-                .catch(() => {
-                    // Doar pentru navigare (schimbare de pagină) e corect să servim
-                    // index.html ca fallback offline; pentru CSS/JS/imagini ar produce
-                    // un răspuns HTML cu content-type greșit, deci lăsăm cererea să eșueze.
+    event.respondWith(
+        fetch(event.request)
+            .then(raspunsRetea => {
+                const clona = raspunsRetea.clone();
+                caches.open(CACHE_NAME).then(cache => cache.put(event.request, clona));
+                return raspunsRetea;
+            })
+            .catch(() =>
+                caches.match(event.request).then(raspunsCache => {
+                    if (raspunsCache) return raspunsCache;
                     if (event.request.mode === 'navigate') {
                         return caches.match(INDEX_URL);
                     }
                     return Promise.reject(new Error('offline și fără răspuns în cache'));
-                });
-        })
+                })
+            )
     );
 });
