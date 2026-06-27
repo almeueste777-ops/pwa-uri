@@ -12,8 +12,8 @@ let accesCurent = null;
 
 // Rolurile aplicației: fiecare are un PIN și un domeniu de acces.
 // acces = 'total' (vede tot) sau { gestiuni: [...ids], locatii: [{gestiune, locatie}] }.
-// CRPV are id '2', Mănăstire id '1'.
-const ROLURI = {
+// CRPV are id '2', Mănăstire id '1'. Rolurile sunt editabile și persistate în localStorage.
+const DEFAULT_ROLURI = {
     'Stareț':         { pin: '0000', acces: 'total' },
     'Econom':         { pin: '1111', acces: 'total' },
     'Director':       { pin: '5555', acces: 'total' },
@@ -23,7 +23,27 @@ const ROLURI = {
     'Asistentă':      { pin: '4444', acces: { locatii: [{ gestiune: '2', locatie: 'Medicamente' }] } },
 };
 
+const ROLURI_KEY = 'antigravity-roluri-v1';
 const USER_SESSION_KEY = 'antigravity-utilizator-curent';
+
+function getRoluri() {
+    const raw = localStorage.getItem(ROLURI_KEY);
+    if (raw) {
+        try { return JSON.parse(raw); } catch (e) { /* cade pe implicit */ }
+    }
+    const clona = JSON.parse(JSON.stringify(DEFAULT_ROLURI));
+    localStorage.setItem(ROLURI_KEY, JSON.stringify(clona));
+    return clona;
+}
+
+function salveazaRoluri(roluri) {
+    localStorage.setItem(ROLURI_KEY, JSON.stringify(roluri));
+}
+
+// Un rol „administrator” = acces total; doar el poate gestiona rolurile.
+function esteAdmin(acces) {
+    return acces === 'total';
+}
 
 function poateAccesaGestiune(acces, gestiuneId) {
     if (acces === 'total') return true;
@@ -114,6 +134,28 @@ const elZonaPrint = document.getElementById('zona-print');
 
 let exportTip = 'inventar';   // 'inventar' sau 'registru'
 let exportScop = 'categorie'; // 'categorie' | 'gestiune' | 'total'
+
+const elBtnLogout = document.getElementById('btn-logout');
+const elBtnAcasa = document.getElementById('btn-acasa');
+const elBtnMergiGestiuni = document.getElementById('btn-mergi-gestiuni');
+const elBtnMergiRoluri = document.getElementById('btn-mergi-roluri');
+const elListaRoluriAdmin = document.getElementById('lista-roluri-admin');
+const elBtnAdaugaRol = document.getElementById('btn-adauga-rol');
+
+const elModalRol = document.getElementById('modal-rol');
+const elRolTitlu = document.getElementById('rol-titlu');
+const elRolNume = document.getElementById('rol-nume');
+const elRolPin = document.getElementById('rol-pin');
+const elRolAccesTip = document.getElementById('rol-acces-tip');
+const elRolAccesGestiuneWrap = document.getElementById('rol-acces-gestiune-wrap');
+const elRolAccesGestiune = document.getElementById('rol-acces-gestiune');
+const elRolAccesSectorWrap = document.getElementById('rol-acces-sector-wrap');
+const elRolAccesSector = document.getElementById('rol-acces-sector');
+const elRolSalveaza = document.getElementById('rol-salveaza');
+const elRolAnuleaza = document.getElementById('rol-anuleaza');
+const elRolSterge = document.getElementById('rol-sterge');
+
+let rolEditat = null; // numele rolului în editare; null = rol nou
 
 let produsEditat = null;
 let pozaEditataTemp = null; // null = poza neschimbată; string = data URL nou
@@ -594,7 +636,7 @@ function afiseazaUtilizatorCurent(utilizator) {
 
 function randeazaRoluri() {
     elListaRoluri.innerHTML = '';
-    Object.keys(ROLURI).forEach(rol => {
+    Object.keys(getRoluri()).forEach(rol => {
         const btn = document.createElement('button');
         btn.className = 'card-rol neu-card py-4 font-bold text-gray-600 transition';
         btn.dataset.rol = rol;
@@ -617,14 +659,18 @@ function selecteazaRolLogin(rol) {
 
 function aplicaAcces(utilizator) {
     rolSelectat = utilizator.rol;
-    accesCurent = (ROLURI[utilizator.rol] || {}).acces ?? null;
+    accesCurent = (getRoluri()[utilizator.rol] || {}).acces ?? null;
     afiseazaUtilizatorCurent(utilizator);
     randeazaEcraneGestiuni(id => poateAccesaGestiune(accesCurent, id));
+    // Butoanele din antet și navigarea către roluri apar doar după autentificare
+    elBtnLogout.classList.remove('hidden');
+    elBtnAcasa.classList.remove('hidden');
+    elBtnMergiRoluri.classList.toggle('hidden', !esteAdmin(accesCurent));
 }
 
 function confirmaLogin() {
     if (!rolSelectat) return;
-    const config = ROLURI[rolSelectat];
+    const config = getRoluri()[rolSelectat];
     if (!config || elInputPinLogin.value !== config.pin) {
         elEroareLogin.classList.remove('hidden');
         return;
@@ -632,7 +678,211 @@ function confirmaLogin() {
     const utilizator = { rol: rolSelectat };
     sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(utilizator));
     aplicaAcces(utilizator);
-    comutaEcran('ecran-gestiuni');
+    deschideDashboard();
+}
+
+function deconecteaza() {
+    sessionStorage.removeItem(USER_SESSION_KEY);
+    rolSelectat = null;
+    accesCurent = null;
+    elUtilizatorCurent.classList.add('hidden');
+    elBtnLogout.classList.add('hidden');
+    elBtnAcasa.classList.add('hidden');
+    elBtnMergiRoluri.classList.add('hidden');
+    elInputPinLogin.classList.add('hidden');
+    elBtnConfirmaLogin.classList.add('hidden');
+    elInputPinLogin.value = '';
+    comutaEcran('ecran-login');
+}
+
+// --- Dashboard ---
+async function deschideDashboard() {
+    document.getElementById('dash-rol').textContent = rolSelectat || '';
+    document.getElementById('dash-data').textContent = new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    elBtnMergiRoluri.classList.toggle('hidden', !esteAdmin(accesCurent));
+    comutaEcran('ecran-dashboard');
+    await randeazaDashboard();
+}
+
+async function randeazaDashboard() {
+    const structura = getStructura();
+    const produse = (await getProduse()).filter(p => poateAccesaGestiune(accesCurent, p.gestiuneId) && poateAccesaLocatie(accesCurent, p.gestiuneId, p.locatie));
+
+    let stocTotal = 0;
+    const sectoare = new Set();
+    const peGestiune = {};
+    const alerte = [];
+    for (const p of produse) {
+        const stoc = await getStoc(p.gestiuneId, p.locatie, p.id);
+        stocTotal += Number(stoc) || 0;
+        sectoare.add(`${p.gestiuneId}|${p.locatie}`);
+        if (!peGestiune[p.gestiuneId]) peGestiune[p.gestiuneId] = { produse: 0, stoc: 0 };
+        peGestiune[p.gestiuneId].produse++;
+        peGestiune[p.gestiuneId].stoc += Number(stoc) || 0;
+        if ((Number(stoc) || 0) <= 5) alerte.push({ nume: p.denumire_produs, locatie: p.locatie, stoc: Number(stoc) || 0 });
+    }
+
+    document.getElementById('kpi-produse').textContent = produse.length;
+    document.getElementById('kpi-stoc').textContent = stocTotal;
+    document.getElementById('kpi-sectoare').textContent = sectoare.size;
+    document.getElementById('kpi-alerte').textContent = alerte.length;
+
+    const maxStoc = Math.max(1, ...Object.values(peGestiune).map(g => g.stoc));
+    const elG = document.getElementById('dash-gestiuni');
+    elG.innerHTML = Object.keys(peGestiune).length ? '' : '<p class="text-sm text-gray-400">Nimic de afișat.</p>';
+    Object.entries(peGestiune).forEach(([gid, d]) => {
+        const nume = (structura[gid] || {}).nume || gid;
+        const pct = Math.round(d.stoc / maxStoc * 100);
+        const rand = document.createElement('div');
+        rand.innerHTML = `
+            <div class="flex justify-between text-sm mb-1"><span class="font-semibold">${nume}</span><span class="text-gray-500">${d.produse} produse · ${d.stoc} buc</span></div>
+            <div class="h-2 rounded-full" style="background:var(--shadow-dark)"><div class="h-2 rounded-full bg-blue-500" style="width:${pct}%"></div></div>`;
+        elG.appendChild(rand);
+    });
+
+    alerte.sort((a, b) => a.stoc - b.stoc);
+    const elA = document.getElementById('dash-alerte');
+    if (!alerte.length) {
+        elA.innerHTML = '<p class="text-gray-400">Niciun produs cu stoc scăzut. 👍</p>';
+    } else {
+        elA.innerHTML = '';
+        alerte.slice(0, 12).forEach(a => {
+            const r = document.createElement('div');
+            r.className = 'flex justify-between items-center';
+            r.innerHTML = `<span class="truncate mr-2">${a.nume}<span class="text-gray-400 text-xs"> · ${a.locatie}</span></span><span class="font-bold ${a.stoc === 0 ? 'text-rose-500' : 'text-amber-500'}">${a.stoc}</span>`;
+            elA.appendChild(r);
+        });
+    }
+}
+
+// --- Administrare roluri (doar admin / acces total) ---
+
+function descrieAcces(acces) {
+    if (acces === 'total') return 'Control total';
+    const structura = getStructura();
+    if (acces && acces.gestiuni) return 'Gestiune: ' + acces.gestiuni.map(g => (structura[g] || {}).nume || g).join(', ');
+    if (acces && acces.locatii) return 'Sector: ' + acces.locatii.map(l => l.locatie).join(', ');
+    return '—';
+}
+
+function deschideRoluri() {
+    if (!esteAdmin(accesCurent)) return;
+    randeazaListaRoluri();
+    comutaEcran('ecran-roluri');
+    document.getElementById('titlu-aplicatie').innerText = 'Roluri & acces';
+}
+
+function randeazaListaRoluri() {
+    const roluri = getRoluri();
+    elListaRoluriAdmin.innerHTML = '';
+    Object.entries(roluri).forEach(([nume, cfg]) => {
+        const card = document.createElement('div');
+        card.className = 'neu-card p-4 flex items-center justify-between';
+        card.innerHTML = `
+            <div class="min-w-0">
+                <p class="font-bold truncate">${nume}</p>
+                <p class="text-xs text-gray-500">PIN ${cfg.pin} · ${descrieAcces(cfg.acces)}</p>
+            </div>
+            <button class="btn-edit-rol neu-btn-circular w-9 h-9 flex items-center justify-center text-blue-500 flex-shrink-0" data-rol="${nume}" title="Editează">
+                <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            </button>`;
+        elListaRoluriAdmin.appendChild(card);
+    });
+}
+
+function populeazaSelectGestiuni() {
+    const structura = getStructura();
+    elRolAccesGestiune.innerHTML = '';
+    Object.keys(structura).forEach(gid => {
+        const o = document.createElement('option');
+        o.value = gid;
+        o.textContent = structura[gid].nume;
+        elRolAccesGestiune.appendChild(o);
+    });
+}
+
+function populeazaSelectSectoare() {
+    const structura = getStructura();
+    elRolAccesSector.innerHTML = '';
+    Object.keys(structura).forEach(gid => {
+        (structura[gid].locatii || []).forEach(l => {
+            const o = document.createElement('option');
+            o.value = `${gid}|${l.nume}`;
+            o.textContent = `${structura[gid].nume} → ${l.nume}`;
+            elRolAccesSector.appendChild(o);
+        });
+    });
+}
+
+function actualizeazaCampuriAcces() {
+    const tip = elRolAccesTip.value;
+    elRolAccesGestiuneWrap.classList.toggle('hidden', tip !== 'gestiune');
+    elRolAccesSectorWrap.classList.toggle('hidden', tip !== 'sector');
+}
+
+function deschideEditorRol(nume) {
+    rolEditat = nume || null;
+    populeazaSelectGestiuni();
+    populeazaSelectSectoare();
+    if (nume) {
+        const cfg = getRoluri()[nume];
+        elRolTitlu.textContent = 'Editează rol';
+        elRolNume.value = nume;
+        elRolPin.value = cfg.pin || '';
+        if (cfg.acces === 'total') elRolAccesTip.value = 'total';
+        else if (cfg.acces && cfg.acces.gestiuni) { elRolAccesTip.value = 'gestiune'; elRolAccesGestiune.value = cfg.acces.gestiuni[0]; }
+        else if (cfg.acces && cfg.acces.locatii) { elRolAccesTip.value = 'sector'; elRolAccesSector.value = `${cfg.acces.locatii[0].gestiune}|${cfg.acces.locatii[0].locatie}`; }
+        else elRolAccesTip.value = 'total';
+        elRolSterge.classList.remove('hidden');
+    } else {
+        elRolTitlu.textContent = 'Adaugă rol';
+        elRolNume.value = '';
+        elRolPin.value = '';
+        elRolAccesTip.value = 'total';
+        elRolSterge.classList.add('hidden');
+    }
+    actualizeazaCampuriAcces();
+    elModalRol.classList.remove('hidden');
+}
+
+function inchideEditorRol() {
+    elModalRol.classList.add('hidden');
+    rolEditat = null;
+}
+
+async function salveazaRol() {
+    const nume = elRolNume.value.trim();
+    const pin = elRolPin.value.trim();
+    if (!nume) { elRolNume.focus(); return; }
+    if (!pin) { elRolPin.focus(); return; }
+
+    let acces = 'total';
+    if (elRolAccesTip.value === 'gestiune') {
+        acces = { gestiuni: [elRolAccesGestiune.value] };
+    } else if (elRolAccesTip.value === 'sector') {
+        const [g, loc] = elRolAccesSector.value.split('|');
+        acces = { locatii: [{ gestiune: g, locatie: loc }] };
+    }
+
+    const roluri = getRoluri();
+    // Dacă s-a redenumit rolul, ștergem cheia veche
+    if (rolEditat && rolEditat !== nume) delete roluri[rolEditat];
+    roluri[nume] = { pin, acces };
+    salveazaRoluri(roluri);
+    inchideEditorRol();
+    randeazaListaRoluri();
+}
+
+async function stergeRol() {
+    if (!rolEditat) return;
+    const roluri = getRoluri();
+    if (Object.keys(roluri).length <= 1) { await modalNotifica('Trebuie să rămână cel puțin un rol.'); return; }
+    const ok = await modalConfirma(`Ștergi rolul „${rolEditat}”?`);
+    if (!ok) return;
+    delete roluri[rolEditat];
+    salveazaRoluri(roluri);
+    inchideEditorRol();
+    randeazaListaRoluri();
 }
 
 function initializeazaStatusRetea() {
@@ -888,7 +1138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const utilizatorSalvat = sessionStorage.getItem(USER_SESSION_KEY);
     if (utilizatorSalvat) {
         aplicaAcces(JSON.parse(utilizatorSalvat));
-        comutaEcran('ecran-gestiuni');
+        await deschideDashboard();
     } else {
         comutaEcran('ecran-login');
     }
@@ -901,6 +1151,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     elInputPinLogin.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') confirmaLogin();
     });
+
+    // Antet: logout + acasă (dashboard)
+    elBtnLogout.addEventListener('click', deconecteaza);
+    elBtnAcasa.addEventListener('click', deschideDashboard);
+
+    // Dashboard → navigare
+    elBtnMergiGestiuni.addEventListener('click', () => comutaEcran('ecran-gestiuni'));
+    elBtnMergiRoluri.addEventListener('click', deschideRoluri);
+
+    // Administrare roluri
+    elBtnAdaugaRol.addEventListener('click', () => deschideEditorRol(null));
+    elListaRoluriAdmin.addEventListener('click', (e) => {
+        const b = e.target.closest('.btn-edit-rol');
+        if (b) deschideEditorRol(b.dataset.rol);
+    });
+    elRolAccesTip.addEventListener('change', actualizeazaCampuriAcces);
+    elRolSalveaza.addEventListener('click', salveazaRol);
+    elRolAnuleaza.addEventListener('click', inchideEditorRol);
+    elRolSterge.addEventListener('click', stergeRol);
+    elModalRol.addEventListener('click', (e) => { if (e.target === elModalRol) inchideEditorRol(); });
 
     // 2. Click pe o gestiune (butoanele se generează în aplicaAcces, filtrate pe acces)
     document.getElementById('ecran-gestiuni').addEventListener('click', async (e) => {
@@ -997,7 +1267,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btn-inapoi').addEventListener('click', () => {
         const ecranActiv = document.querySelector('section:not(.hidden)').id;
 
-        if (ecranActiv === 'ecran-locatii') {
+        if (ecranActiv === 'ecran-gestiuni' || ecranActiv === 'ecran-roluri') {
+            deschideDashboard();
+        } else if (ecranActiv === 'ecran-locatii') {
             comutaEcran('ecran-gestiuni');
             gestiuneCurenta = null;
         } else if (ecranActiv === 'ecran-produse') {

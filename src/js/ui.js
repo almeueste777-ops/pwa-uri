@@ -79,7 +79,7 @@ export function esteUrlImagineValid(url) {
 
 // Navigare între ecrane, cu animație elastică de glisare
 export function comutaEcran(idEcran) {
-    const ecrane = ['ecran-login', 'ecran-gestiuni', 'ecran-locatii', 'ecran-produse', 'ecran-operatie', 'ecran-registru'];
+    const ecrane = ['ecran-login', 'ecran-dashboard', 'ecran-roluri', 'ecran-gestiuni', 'ecran-locatii', 'ecran-produse', 'ecran-operatie', 'ecran-registru'];
     ecrane.forEach(ecran => {
         const el = document.getElementById(ecran);
         if (ecran === idEcran) {
@@ -93,11 +93,13 @@ export function comutaEcran(idEcran) {
     });
 
     const btnInapoi = document.getElementById('btn-inapoi');
-    if (idEcran === 'ecran-gestiuni') {
+    const ecraneFaraInapoi = ['ecran-login', 'ecran-dashboard'];
+    if (ecraneFaraInapoi.includes(idEcran)) {
         btnInapoi.classList.add('hidden');
-        document.getElementById('titlu-aplicatie').innerText = 'Selectează Gestiunea';
+        if (idEcran === 'ecran-dashboard') document.getElementById('titlu-aplicatie').innerText = 'Dashboard';
     } else {
         btnInapoi.classList.remove('hidden');
+        if (idEcran === 'ecran-gestiuni') document.getElementById('titlu-aplicatie').innerText = 'Selectează Gestiunea';
     }
 }
 
