@@ -1,5 +1,5 @@
 // app.js - Creierul aplicației Antigravity
-import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus, getRegistru, salveazaRegistru, redenumesteLocatie, stergeDateLocatie, stergeDateGestiune } from '../db/local-db.js';
+import { initLocalDB, getProduse, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus, getRegistru, salveazaRegistru, redenumesteLocatie, stergeDateLocatie, stergeDateGestiune } from '../db/local-db.js';
 import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, getStructura, salveazaStructura, getNumeGestiune } from './ui.js';
 
 let dbInstance = null;
@@ -103,6 +103,17 @@ const elModalInputSterge = document.getElementById('modal-input-sterge');
 
 let modEditare = 'edit';     // 'edit' sau 'nou'
 let rezolvaModalInput = null; // callback pentru promisiunea modalului generic
+
+const elBtnExportInventar = document.getElementById('btn-export-inventar');
+const elBtnExportRegistru = document.getElementById('btn-export-registru');
+const elModalExport = document.getElementById('modal-export');
+const elExportTitlu = document.getElementById('export-titlu');
+const elExportScopuri = document.getElementById('export-scopuri');
+const elExportInchide = document.getElementById('export-inchide');
+const elZonaPrint = document.getElementById('zona-print');
+
+let exportTip = 'inventar';   // 'inventar' sau 'registru'
+let exportScop = 'categorie'; // 'categorie' | 'gestiune' | 'total'
 
 let produsEditat = null;
 let pozaEditataTemp = null; // null = poza neschimbată; string = data URL nou
@@ -719,6 +730,146 @@ async function adaugaLocatie(gestiuneId) {
     reincarcaLocatii();
 }
 
+// --- Export inventar / registru în CSV, Excel și PDF (totul offline) ---
+
+const ANTET_INVENTAR = ['Gestiune', 'Sector', 'Produs', 'Marcă', 'Unitate', 'Stoc rămas', 'Stoc inventar', 'Data inventar'];
+const ANTET_REGISTRU = ['Data', 'Intrare', 'Ieșire', 'Stoc rămas'];
+
+function descarcaFisier(numeFisier, continut, mime) {
+    const blob = new Blob([continut], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = numeFisier;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function slug(text) {
+    return String(text || 'export').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'export';
+}
+
+function celulaCSV(v) {
+    const s = String(v ?? '');
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function genereazaCSV(antet, randuri) {
+    const linii = [antet.map(celulaCSV).join(';')];
+    randuri.forEach(r => linii.push(r.map(celulaCSV).join(';')));
+    return '\uFEFF' + linii.join('\r\n'); // BOM ca diacriticele să apară corect în Excel
+}
+
+function escHtml(v) {
+    return String(v ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+function genereazaTabelHTML(antet, randuri) {
+    const thead = '<tr>' + antet.map(h => `<th>${escHtml(h)}</th>`).join('') + '</tr>';
+    const tbody = randuri.map(r => '<tr>' + r.map(c => `<td>${escHtml(c)}</td>`).join('') + '</tr>').join('');
+    return `<table border="1" cellspacing="0" cellpadding="4"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+}
+function genereazaExcel(titlu, antet, randuri) {
+    return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h2>${escHtml(titlu)}</h2>${genereazaTabelHTML(antet, randuri)}</body></html>`;
+}
+
+function tipareste(titlu, antet, randuri) {
+    elZonaPrint.innerHTML = `<h1>${escHtml(titlu)}</h1>${genereazaTabelHTML(antet, randuri)}` +
+        `<p style="margin-top:12px;font-size:11px;color:#555">Generat: ${escHtml(new Date().toLocaleString('ro-RO'))}</p>`;
+    document.body.classList.add('mod-print');
+    const curata = () => { document.body.classList.remove('mod-print'); window.removeEventListener('afterprint', curata); };
+    window.addEventListener('afterprint', curata);
+    setTimeout(() => window.print(), 100);
+}
+
+async function colecteazaInventar(scop) {
+    const produse = await getProduse();
+    const structura = getStructura();
+    let lista = produse;
+    if (scop === 'gestiune') lista = produse.filter(p => String(p.gestiuneId) === String(gestiuneCurenta));
+    else if (scop === 'categorie') lista = produse.filter(p => String(p.gestiuneId) === String(gestiuneCurenta) && p.locatie === locatieCurenta);
+    lista.sort((a, b) => (a.locatie || '').localeCompare(b.locatie || '') || (a.denumire_produs || '').localeCompare(b.denumire_produs || ''));
+
+    const randuri = [];
+    for (const p of lista) {
+        const inr = await getInregistrareStoc(p.gestiuneId, p.locatie, p.id);
+        const numeGest = (structura[p.gestiuneId] || {}).nume || p.gestiuneId;
+        randuri.push([numeGest, p.locatie, p.denumire_produs, p.marca || '', p.unitate_masura || '', inr.valoare, inr.stocInventar ?? '', inr.dataInventar ?? '']);
+    }
+    return randuri;
+}
+
+async function colecteazaRegistru() {
+    const luna = lunaCheie(lunaRegistru);
+    const date = await getRegistru(gestiuneCurenta, locatieCurenta, produsCurent.id, luna);
+    const zile = date.zile || {};
+    const zileInLuna = new Date(lunaRegistru.getFullYear(), lunaRegistru.getMonth() + 1, 0).getDate();
+    let running = Number(date.stocInitial) || 0;
+    const randuri = [];
+    for (let zi = 1; zi <= zileInLuna; zi++) {
+        const r = zile[zi] || {};
+        const i = Number(r.i) || 0;
+        const e = Number(r.e) || 0;
+        running += i - e;
+        randuri.push([zi, i || '', e || '', running]);
+    }
+    return randuri;
+}
+
+function deschideExport(tip) {
+    exportTip = tip;
+    if (tip === 'registru') {
+        elExportTitlu.textContent = 'Export registru';
+        elExportScopuri.classList.add('hidden');
+    } else {
+        elExportTitlu.textContent = 'Export inventar';
+        elExportScopuri.classList.remove('hidden');
+        exportScop = 'categorie';
+        evidentiazaScop();
+    }
+    elModalExport.classList.remove('hidden');
+}
+
+function inchideExport() {
+    elModalExport.classList.add('hidden');
+}
+
+function evidentiazaScop() {
+    document.querySelectorAll('.export-scop').forEach(b => {
+        b.classList.toggle('text-blue-500', b.dataset.scop === exportScop);
+        b.classList.toggle('text-gray-600', b.dataset.scop !== exportScop);
+    });
+}
+
+async function executaExport(format) {
+    let titlu, antet, randuri, numeBaza;
+    if (exportTip === 'registru') {
+        antet = ANTET_REGISTRU;
+        randuri = await colecteazaRegistru();
+        titlu = `Registru ${produsCurent.denumire_produs} — ${elRegistruLunaEticheta.textContent}`;
+        numeBaza = `registru-${slug(produsCurent.denumire_produs)}-${lunaCheie(lunaRegistru)}`;
+    } else {
+        antet = ANTET_INVENTAR;
+        randuri = await colecteazaInventar(exportScop);
+        const undeText = exportScop === 'total' ? 'Tot inventarul'
+            : exportScop === 'gestiune' ? getNumeGestiune(gestiuneCurenta)
+            : `${getNumeGestiune(gestiuneCurenta)} — ${locatieCurenta}`;
+        titlu = `Inventar — ${undeText}`;
+        numeBaza = `inventar-${slug(undeText)}-${new Date().toISOString().slice(0, 10)}`;
+    }
+
+    if (format === 'csv') {
+        descarcaFisier(numeBaza + '.csv', genereazaCSV(antet, randuri), 'text/csv;charset=utf-8');
+    } else if (format === 'excel') {
+        descarcaFisier(numeBaza + '.xls', genereazaExcel(titlu, antet, randuri), 'application/vnd.ms-excel');
+    } else if (format === 'pdf') {
+        tipareste(titlu, antet, randuri);
+    }
+    inchideExport();
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initializeazaStatusRetea();
 
@@ -812,6 +963,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     elModalInput.addEventListener('click', (e) => { if (e.target === elModalInput) inchideModalInput(null); });
     elModalInputCamp.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') inchideModalInput({ actiune: 'salveaza', valoare: elModalInputCamp.value });
+    });
+
+    // Export inventar / registru
+    elBtnExportInventar.addEventListener('click', () => deschideExport('inventar'));
+    elBtnExportRegistru.addEventListener('click', () => deschideExport('registru'));
+    elExportInchide.addEventListener('click', inchideExport);
+    elModalExport.addEventListener('click', (e) => {
+        if (e.target === elModalExport) { inchideExport(); return; }
+        const btnScop = e.target.closest('.export-scop');
+        if (btnScop) { exportScop = btnScop.dataset.scop; evidentiazaScop(); return; }
+        const btnFormat = e.target.closest('.export-format');
+        if (btnFormat) executaExport(btnFormat.dataset.format);
     });
 
     // 3d. Operația de intrare/ieșire stoc
