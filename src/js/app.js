@@ -1,5 +1,5 @@
 // app.js - Creierul aplicației Antigravity
-import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus, adaugaMiscare, getMiscari, redenumesteLocatie, stergeDateLocatie, stergeDateGestiune } from '../db/local-db.js';
+import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus, adaugaMiscare, getMiscari, stergeMiscare, redenumesteLocatie, stergeDateLocatie, stergeDateGestiune } from '../db/local-db.js';
 import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, getStructura, salveazaStructura, getNumeGestiune } from './ui.js';
 
 let dbInstance = null;
@@ -68,6 +68,7 @@ const elInputPozaFisier = document.getElementById('input-poza-fisier');
 const elBtnEditeazaProdus = document.getElementById('btn-editeaza-produs');
 
 const elCorpTabelMiscari = document.getElementById('corp-tabel-miscari');
+const elBtnAdaugaMiscare = document.getElementById('btn-adauga-miscare');
 
 const elModalEditare = document.getElementById('modal-editare');
 const elEditPoza = document.getElementById('edit-poza');
@@ -349,7 +350,7 @@ async function randeazaTabelMiscari(produsId) {
     elCorpTabelMiscari.innerHTML = '';
 
     if (miscari.length === 0) {
-        elCorpTabelMiscari.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-3">Nicio mișcare încă.</td></tr>';
+        elCorpTabelMiscari.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-3">Nicio mișcare încă. Apasă „+ Adaugă”.</td></tr>';
         return;
     }
 
@@ -364,10 +365,74 @@ async function randeazaTabelMiscari(produsId) {
             <td class="py-1.5 pr-2 font-semibold ${esteIntrare ? 'text-green-600' : 'text-rose-500'}">${esteIntrare ? 'Intrare' : 'Ieșire'}</td>
             <td class="py-1.5 pr-2 text-right">${esteIntrare ? '+' : '-'}${m.cantitate}</td>
             <td class="py-1.5 pr-2 text-right text-gray-500">${m.stocInainte}</td>
-            <td class="py-1.5 text-right text-gray-500">${m.stocDupa}</td>
+            <td class="py-1.5 pr-2 text-right text-gray-500">${m.stocDupa}</td>
+            <td class="py-1.5 text-right"><button class="btn-sterge-miscare text-rose-400 font-bold px-1" title="Șterge mișcarea" data-id="${m.id}">×</button></td>
         `;
         elCorpTabelMiscari.appendChild(tr);
     });
+}
+
+// Adaugă manual o mișcare în registru (ajustează și stocul, ca să rămână consistent)
+async function adaugaMiscareManuala() {
+    if (!produsCurent) return;
+    const tipRaspuns = (prompt('Tip mișcare: scrie I pentru Intrare sau E pentru Ieșire', 'I') || '').trim().toUpperCase();
+    if (tipRaspuns !== 'I' && tipRaspuns !== 'E') {
+        if (tipRaspuns) alert('Scrie I (intrare) sau E (ieșire).');
+        return;
+    }
+    const tip = tipRaspuns === 'I' ? 'intrare' : 'iesire';
+
+    const cantitate = parseFloat(prompt('Cantitate:', ''));
+    if (isNaN(cantitate) || cantitate <= 0) {
+        alert('Introdu o cantitate validă.');
+        return;
+    }
+
+    const azi = new Date().toISOString().slice(0, 10);
+    const dataText = (prompt('Data (AAAA-LL-ZZ):', azi) || azi).trim();
+    const dataISO = new Date(`${dataText}T12:00:00`);
+    const data = isNaN(dataISO) ? new Date().toISOString() : dataISO.toISOString();
+
+    const stocActual = await getStoc(gestiuneCurenta, locatieCurenta, produsCurent.id);
+    if (tip === 'iesire' && cantitate > stocActual) {
+        alert(`Stoc insuficient. Stoc actual: ${stocActual}.`);
+        return;
+    }
+
+    const delta = tip === 'intrare' ? cantitate : -cantitate;
+    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
+    const stocDupa = await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta, operator);
+
+    await adaugaMiscare({
+        gestiuneId: gestiuneCurenta,
+        locatie: locatieCurenta,
+        produsId: produsCurent.id,
+        tip,
+        cantitate,
+        stocInainte: stocActual,
+        stocDupa,
+        data,
+        rol: rolSelectat,
+        manuala: true,
+    });
+
+    await afiseazaDetaliiProdus(produsCurent);
+    await randeazaTabelMiscari(produsCurent.id);
+}
+
+// Șterge o mișcare din registru și anulează efectul ei asupra stocului
+async function stergeMiscareDupaId(id) {
+    if (!produsCurent) return;
+    const miscari = await getMiscari(gestiuneCurenta, locatieCurenta, produsCurent.id);
+    const m = miscari.find(x => x.id === id);
+    if (!m) return;
+    if (!confirm('Ștergi această mișcare? Stocul va fi corectat înapoi.')) return;
+    const deltaInvers = m.tip === 'intrare' ? -m.cantitate : m.cantitate;
+    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
+    await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, deltaInvers, operator);
+    await stergeMiscare(id);
+    await afiseazaDetaliiProdus(produsCurent);
+    await randeazaTabelMiscari(produsCurent.id);
 }
 
 function afiseazaUtilizatorCurent(utilizator) {
@@ -621,6 +686,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     elOpIesire.addEventListener('click', () => selecteazaOperatie('iesire'));
     elBtnValideaza.addEventListener('click', valideazaMiscare);
     elBtnSalveazaInventar.addEventListener('click', salveazaInventarProdusCurent);
+    elBtnAdaugaMiscare.addEventListener('click', adaugaMiscareManuala);
+    elCorpTabelMiscari.addEventListener('click', (e) => {
+        const btnSterge = e.target.closest('.btn-sterge-miscare');
+        if (btnSterge) stergeMiscareDupaId(btnSterge.dataset.id);
+    });
 
     // 4. Logica butonului "Înapoi" - Navigare fluidă, fără refresh
     document.getElementById('btn-inapoi').addEventListener('click', () => {

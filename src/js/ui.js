@@ -200,10 +200,10 @@ export function randeazaProduse(gestiuneNume, locatieNume, produseInstanta = [],
 
         // Buton de editare pe fiecare căsuță (denumire, marcă, cantitate, poză)
         const btnEdit = document.createElement('button');
-        btnEdit.className = 'btn-edit-card neu-btn-circular w-7 h-7 flex items-center justify-center text-gray-400 absolute top-1.5 right-1.5';
-        btnEdit.title = 'Editează';
+        btnEdit.className = 'btn-edit-card neu-btn-circular w-8 h-8 flex items-center justify-center text-blue-500 absolute top-1.5 right-1.5 z-10';
+        btnEdit.title = 'Editează produsul';
         btnEdit.dataset.produsId = produs.id;
-        btnEdit.innerHTML = '<svg class="w-3.5 h-3.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>';
+        btnEdit.innerHTML = '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>';
 
         const poza = document.createElement('div');
         poza.className = 'w-16 h-16 neu-icon-badge mb-3 imagine-produs-bg';
