@@ -79,7 +79,7 @@ export function esteUrlImagineValid(url) {
 
 // Navigare între ecrane, cu animație elastică de glisare
 export function comutaEcran(idEcran) {
-    const ecrane = ['ecran-login', 'ecran-gestiuni', 'ecran-locatii', 'ecran-produse', 'ecran-operatie'];
+    const ecrane = ['ecran-login', 'ecran-gestiuni', 'ecran-locatii', 'ecran-produse', 'ecran-operatie', 'ecran-registru'];
     ecrane.forEach(ecran => {
         const el = document.getElementById(ecran);
         if (ecran === idEcran) {

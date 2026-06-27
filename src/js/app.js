@@ -1,5 +1,5 @@
 // app.js - Creierul aplicației Antigravity
-import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus, adaugaMiscare, getMiscari, stergeMiscare, redenumesteLocatie, stergeDateLocatie, stergeDateGestiune } from '../db/local-db.js';
+import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus, getRegistru, salveazaRegistru, redenumesteLocatie, stergeDateLocatie, stergeDateGestiune } from '../db/local-db.js';
 import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, getStructura, salveazaStructura, getNumeGestiune } from './ui.js';
 
 let dbInstance = null;
@@ -67,8 +67,18 @@ const elBtnSchimbaPoza = document.getElementById('btn-schimba-poza');
 const elInputPozaFisier = document.getElementById('input-poza-fisier');
 const elBtnEditeazaProdus = document.getElementById('btn-editeaza-produs');
 
-const elCorpTabelMiscari = document.getElementById('corp-tabel-miscari');
-const elBtnAdaugaMiscare = document.getElementById('btn-adauga-miscare');
+const elBtnDeschideRegistru = document.getElementById('btn-deschide-registru');
+const elEcranRegistru = document.getElementById('ecran-registru');
+const elRegistruLunaEticheta = document.getElementById('registru-luna-eticheta');
+const elRegistruLunaPrev = document.getElementById('registru-luna-prev');
+const elRegistruLunaNext = document.getElementById('registru-luna-next');
+const elRegistruStocInitial = document.getElementById('registru-stoc-initial');
+const elRegistruInfo = document.getElementById('registru-info');
+const elCorpRegistru = document.getElementById('corp-registru');
+
+let lunaRegistru = null;     // Date pe ziua 1 a lunii afișate
+let registruStocInitial = 0;
+let registruZile = {};       // { ziuaNum: { i: intrare, e: iesire } }
 
 const elModalEditare = document.getElementById('modal-editare');
 const elEditPoza = document.getElementById('edit-poza');
@@ -147,7 +157,6 @@ async function deschideOperatie(produsId) {
     elInputCantitate.value = '';
     elInputExpirare.value = '';
     await afiseazaDetaliiProdus(produs);
-    await randeazaTabelMiscari(produs.id);
     comutaEcran('ecran-operatie');
 }
 
@@ -320,119 +329,114 @@ async function valideazaMiscare() {
 
     const delta = tipOperatieCurenta === 'intrare' ? cantitate : -cantitate;
     const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
-    const stocDupa = await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta, operator);
-
-    // Înregistrăm mișcarea în registrul zilnic (diferit de inventarul lunar)
-    await adaugaMiscare({
-        gestiuneId: gestiuneCurenta,
-        locatie: locatieCurenta,
-        produsId: produsCurent.id,
-        tip: tipOperatieCurenta,
-        cantitate,
-        stocInainte: stocActual,
-        stocDupa,
-        data: new Date().toISOString(),
-        rol: rolSelectat,
-        expirare: tipOperatieCurenta === 'intrare' ? (elInputExpirare.value || null) : null,
-    });
+    await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta, operator);
 
     await afiseazaDetaliiProdus(produsCurent);
-    await randeazaTabelMiscari(produsCurent.id);
     elZonaIntroducere.classList.add('hidden');
     elInputCantitate.value = '';
     elInputExpirare.value = '';
     tipOperatieCurenta = null;
 }
 
-async function randeazaTabelMiscari(produsId) {
-    if (!elCorpTabelMiscari) return;
-    const miscari = await getMiscari(gestiuneCurenta, locatieCurenta, produsId);
-    elCorpTabelMiscari.innerHTML = '';
+// --- Registru lunar (fișă de magazie) cu câmpuri fizice pe fiecare zi ---
 
-    if (miscari.length === 0) {
-        elCorpTabelMiscari.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-3">Nicio mișcare încă. Apasă „+ Adaugă”.</td></tr>';
-        return;
-    }
+function lunaCheie(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
-    miscari.forEach(m => {
+async function deschideRegistru() {
+    if (!produsCurent) return;
+    const acum = new Date();
+    lunaRegistru = new Date(acum.getFullYear(), acum.getMonth(), 1);
+    await incarcaRegistru();
+    comutaEcran('ecran-registru');
+}
+
+async function incarcaRegistru() {
+    const luna = lunaCheie(lunaRegistru);
+    const date = await getRegistru(gestiuneCurenta, locatieCurenta, produsCurent.id, luna);
+    registruStocInitial = date.stocInitial || 0;
+    registruZile = date.zile || {};
+    elRegistruStocInitial.value = registruStocInitial;
+
+    document.getElementById('titlu-aplicatie').innerText = produsCurent.denumire_produs;
+    const eticheta = lunaRegistru.toLocaleDateString('ro-RO', { month: 'long', year: 'numeric' });
+    elRegistruLunaEticheta.textContent = eticheta.charAt(0).toUpperCase() + eticheta.slice(1);
+
+    construiesteRanduriRegistru();
+    recalculeazaRegistru();
+}
+
+function construiesteRanduriRegistru() {
+    const an = lunaRegistru.getFullYear();
+    const luna = lunaRegistru.getMonth();
+    const zileInLuna = new Date(an, luna + 1, 0).getDate();
+    elCorpRegistru.innerHTML = '';
+
+    for (let zi = 1; zi <= zileInLuna; zi++) {
+        const inreg = registruZile[zi] || {};
         const tr = document.createElement('tr');
         tr.className = 'border-t border-gray-300/40';
-        const data = new Date(m.data);
-        const dataText = isNaN(data) ? (m.data || '') : data.toLocaleDateString('ro-RO');
-        const esteIntrare = m.tip === 'intrare';
         tr.innerHTML = `
-            <td class="py-1.5 pr-2 whitespace-nowrap">${dataText}</td>
-            <td class="py-1.5 pr-2 font-semibold ${esteIntrare ? 'text-green-600' : 'text-rose-500'}">${esteIntrare ? 'Intrare' : 'Ieșire'}</td>
-            <td class="py-1.5 pr-2 text-right">${esteIntrare ? '+' : '-'}${m.cantitate}</td>
-            <td class="py-1.5 pr-2 text-right text-gray-500">${m.stocInainte}</td>
-            <td class="py-1.5 pr-2 text-right text-gray-500">${m.stocDupa}</td>
-            <td class="py-1.5 text-right"><button class="btn-sterge-miscare text-rose-400 font-bold px-1" title="Șterge mișcarea" data-id="${m.id}">×</button></td>
+            <td class="py-1 px-2 font-semibold text-gray-600 whitespace-nowrap">${zi}</td>
+            <td class="py-1 px-1"><input type="number" step="0.01" inputmode="decimal" data-zi="${zi}" data-tip="i" value="${inreg.i ?? ''}" class="inp-registru w-16 rounded-lg p-1.5 text-center text-green-600 font-semibold"></td>
+            <td class="py-1 px-1"><input type="number" step="0.01" inputmode="decimal" data-zi="${zi}" data-tip="e" value="${inreg.e ?? ''}" class="inp-registru w-16 rounded-lg p-1.5 text-center text-rose-500 font-semibold"></td>
+            <td class="py-1 px-2 text-right text-gray-400" data-inainte="${zi}"></td>
+            <td class="py-1 px-2 text-right font-semibold text-blue-500" data-dupa="${zi}"></td>
         `;
-        elCorpTabelMiscari.appendChild(tr);
-    });
+        elCorpRegistru.appendChild(tr);
+    }
 }
 
-// Adaugă manual o mișcare în registru (ajustează și stocul, ca să rămână consistent)
-async function adaugaMiscareManuala() {
-    if (!produsCurent) return;
-    const tipRaspuns = (prompt('Tip mișcare: scrie I pentru Intrare sau E pentru Ieșire', 'I') || '').trim().toUpperCase();
-    if (tipRaspuns !== 'I' && tipRaspuns !== 'E') {
-        if (tipRaspuns) alert('Scrie I (intrare) sau E (ieșire).');
-        return;
+function recalculeazaRegistru() {
+    const zileInLuna = new Date(lunaRegistru.getFullYear(), lunaRegistru.getMonth() + 1, 0).getDate();
+    let running = Number(registruStocInitial) || 0;
+    for (let zi = 1; zi <= zileInLuna; zi++) {
+        const inreg = registruZile[zi] || {};
+        const i = Number(inreg.i) || 0;
+        const e = Number(inreg.e) || 0;
+        const inainte = running;
+        const dupa = inainte + i - e;
+        running = dupa;
+        const celInainte = elCorpRegistru.querySelector(`[data-inainte="${zi}"]`);
+        const celDupa = elCorpRegistru.querySelector(`[data-dupa="${zi}"]`);
+        if (celInainte) celInainte.textContent = (i || e) ? inainte : '';
+        if (celDupa) celDupa.textContent = (i || e) ? dupa : '';
     }
-    const tip = tipRaspuns === 'I' ? 'intrare' : 'iesire';
-
-    const cantitate = parseFloat(prompt('Cantitate:', ''));
-    if (isNaN(cantitate) || cantitate <= 0) {
-        alert('Introdu o cantitate validă.');
-        return;
-    }
-
-    const azi = new Date().toISOString().slice(0, 10);
-    const dataText = (prompt('Data (AAAA-LL-ZZ):', azi) || azi).trim();
-    const dataISO = new Date(`${dataText}T12:00:00`);
-    const data = isNaN(dataISO) ? new Date().toISOString() : dataISO.toISOString();
-
-    const stocActual = await getStoc(gestiuneCurenta, locatieCurenta, produsCurent.id);
-    if (tip === 'iesire' && cantitate > stocActual) {
-        alert(`Stoc insuficient. Stoc actual: ${stocActual}.`);
-        return;
-    }
-
-    const delta = tip === 'intrare' ? cantitate : -cantitate;
-    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
-    const stocDupa = await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta, operator);
-
-    await adaugaMiscare({
-        gestiuneId: gestiuneCurenta,
-        locatie: locatieCurenta,
-        produsId: produsCurent.id,
-        tip,
-        cantitate,
-        stocInainte: stocActual,
-        stocDupa,
-        data,
-        rol: rolSelectat,
-        manuala: true,
-    });
-
-    await afiseazaDetaliiProdus(produsCurent);
-    await randeazaTabelMiscari(produsCurent.id);
+    elRegistruInfo.textContent = `Stoc final lună: ${running}`;
 }
 
-// Șterge o mișcare din registru și anulează efectul ei asupra stocului
-async function stergeMiscareDupaId(id) {
-    if (!produsCurent) return;
-    const miscari = await getMiscari(gestiuneCurenta, locatieCurenta, produsCurent.id);
-    const m = miscari.find(x => x.id === id);
-    if (!m) return;
-    if (!confirm('Ștergi această mișcare? Stocul va fi corectat înapoi.')) return;
-    const deltaInvers = m.tip === 'intrare' ? -m.cantitate : m.cantitate;
-    const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
-    await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, deltaInvers, operator);
-    await stergeMiscare(id);
-    await afiseazaDetaliiProdus(produsCurent);
-    await randeazaTabelMiscari(produsCurent.id);
+async function salveazaRegistruCurent() {
+    const luna = lunaCheie(lunaRegistru);
+    await salveazaRegistru(gestiuneCurenta, locatieCurenta, produsCurent.id, luna, Number(registruStocInitial) || 0, registruZile);
+}
+
+function onInputRegistru(e) {
+    const inp = e.target.closest('.inp-registru');
+    if (!inp) return;
+    const zi = inp.dataset.zi;
+    const tip = inp.dataset.tip; // 'i' sau 'e'
+    const val = inp.value === '' ? undefined : Number(inp.value);
+    if (!registruZile[zi]) registruZile[zi] = {};
+    if (val === undefined || isNaN(val)) {
+        delete registruZile[zi][tip];
+    } else {
+        registruZile[zi][tip] = val;
+    }
+    if (Object.keys(registruZile[zi]).length === 0) delete registruZile[zi];
+    recalculeazaRegistru();
+    salveazaRegistruCurent();
+}
+
+function onStocInitialRegistru() {
+    registruStocInitial = elRegistruStocInitial.value === '' ? 0 : Number(elRegistruStocInitial.value) || 0;
+    recalculeazaRegistru();
+    salveazaRegistruCurent();
+}
+
+async function schimbaLunaRegistru(deltaLuni) {
+    lunaRegistru = new Date(lunaRegistru.getFullYear(), lunaRegistru.getMonth() + deltaLuni, 1);
+    await incarcaRegistru();
 }
 
 function afiseazaUtilizatorCurent(utilizator) {
@@ -686,11 +690,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     elOpIesire.addEventListener('click', () => selecteazaOperatie('iesire'));
     elBtnValideaza.addEventListener('click', valideazaMiscare);
     elBtnSalveazaInventar.addEventListener('click', salveazaInventarProdusCurent);
-    elBtnAdaugaMiscare.addEventListener('click', adaugaMiscareManuala);
-    elCorpTabelMiscari.addEventListener('click', (e) => {
-        const btnSterge = e.target.closest('.btn-sterge-miscare');
-        if (btnSterge) stergeMiscareDupaId(btnSterge.dataset.id);
-    });
+
+    // Registru lunar
+    elBtnDeschideRegistru.addEventListener('click', deschideRegistru);
+    elRegistruLunaPrev.addEventListener('click', () => schimbaLunaRegistru(-1));
+    elRegistruLunaNext.addEventListener('click', () => schimbaLunaRegistru(1));
+    elRegistruStocInitial.addEventListener('input', onStocInitialRegistru);
+    elCorpRegistru.addEventListener('input', onInputRegistru);
 
     // 4. Logica butonului "Înapoi" - Navigare fluidă, fără refresh
     document.getElementById('btn-inapoi').addEventListener('click', () => {
@@ -706,6 +712,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             produsCurent = null;
             elCautareRapida.value = '';
             rerandeazaProduse();
+        } else if (ecranActiv === 'ecran-registru') {
+            comutaEcran('ecran-operatie');
+            if (produsCurent) afiseazaDetaliiProdus(produsCurent);
         }
     });
 });

@@ -1,10 +1,11 @@
 // local-db.js - Motorul de date offline-first al aplicației Antigravity (IndexedDB)
 
 const DB_NAME = 'antigravity-wms-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_PRODUSE = 'produse';
 const STORE_STOCURI = 'stocuri';
 const STORE_MISCARI = 'miscari';
+const STORE_REGISTRU = 'registru';
 
 const LEGACY_STORAGE_KEY = 'antigravity-wms-data';
 
@@ -24,6 +25,9 @@ function deschideDB() {
             }
             if (!baza.objectStoreNames.contains(STORE_MISCARI)) {
                 baza.createObjectStore(STORE_MISCARI, { keyPath: 'id' });
+            }
+            if (!baza.objectStoreNames.contains(STORE_REGISTRU)) {
+                baza.createObjectStore(STORE_REGISTRU, { keyPath: 'cheie' });
             }
         };
 
@@ -252,6 +256,24 @@ export async function getMiscari(gestiuneId, locatie, produsId) {
 
 export async function stergeMiscare(id) {
     await promisifica(tranzactie(STORE_MISCARI, 'readwrite').delete(id));
+}
+
+// --- Registru lunar (fișă de magazie): o filă per produs per lună ---
+
+function cheieRegistru(gestiuneId, locatie, produsId, luna) {
+    return `${gestiuneId}|${locatie}|${produsId}|${luna}`;
+}
+
+export async function getRegistru(gestiuneId, locatie, produsId, luna) {
+    const inregistrare = await promisifica(
+        tranzactie(STORE_REGISTRU, 'readonly').get(cheieRegistru(gestiuneId, locatie, produsId, luna))
+    );
+    return inregistrare || { stocInitial: 0, zile: {} };
+}
+
+export async function salveazaRegistru(gestiuneId, locatie, produsId, luna, stocInitial, zile) {
+    const cheie = cheieRegistru(gestiuneId, locatie, produsId, luna);
+    await promisifica(tranzactie(STORE_REGISTRU, 'readwrite').put({ cheie, stocInitial, zile }));
 }
 
 // --- Editarea structurii: redenumire/ștergere sectoare și gestiuni, cu migrarea datelor ---
