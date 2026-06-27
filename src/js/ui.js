@@ -145,13 +145,14 @@ export function randeazaProduse(gestiuneNume, locatieNume, produseInstanta = [],
         return;
     }
 
-    produseInstanta.forEach(produs => {
+    produseInstanta.forEach((produs, index) => {
         const card = document.createElement('div');
-        card.className = 'card-produs neu-card overflow-hidden flex flex-col cursor-pointer';
+        card.style.animationDelay = `${index * 0.04}s`;
+        card.className = 'card-produs neu-card p-3 flex flex-col items-center text-center cursor-pointer slide-up-fade';
         card.dataset.produsId = produs.id;
 
         const poza = document.createElement('div');
-        poza.className = 'h-32 imagine-produs-bg rounded-t-[18px]';
+        poza.className = 'w-16 h-16 neu-icon-badge mb-3 imagine-produs-bg';
         // Setat via proprietate (nu interpolat în HTML/CSS) ca să evităm injecția
         // din denumiri/URL-uri introduse de utilizator în câmpurile produsului.
         poza.style.backgroundImage = `url("${IMAGINE_FALLBACK}")`;
@@ -161,20 +162,15 @@ export function randeazaProduse(gestiuneNume, locatieNume, produseInstanta = [],
             imgTest.src = produs.poza_url;
         }
 
-        const corp = document.createElement('div');
-        corp.className = 'p-3 flex-1 flex flex-col justify-between';
-
-        const antet = document.createElement('div');
         const titlu = document.createElement('h4');
         titlu.className = 'font-bold text-sm text-gray-700 line-clamp-2';
         titlu.textContent = produs.denumire_produs;
         const marca = document.createElement('p');
         marca.className = 'text-xs text-gray-500 mt-0.5';
         marca.textContent = produs.marca || '';
-        antet.append(titlu, marca);
 
         const rand = document.createElement('div');
-        rand.className = 'mt-2 flex justify-between items-end';
+        rand.className = 'mt-3 flex items-center justify-center gap-2';
         const unitate = document.createElement('span');
         unitate.className = 'text-xs px-2 py-0.5 rounded-full neu-icon-badge text-gray-500';
         unitate.textContent = produs.unitate_masura;
@@ -183,8 +179,7 @@ export function randeazaProduse(gestiuneNume, locatieNume, produseInstanta = [],
         stoc.textContent = produs.stoc || 0;
         rand.append(unitate, stoc);
 
-        corp.append(antet, rand);
-        card.append(poza, corp);
+        card.append(poza, titlu, marca, rand);
         grid.appendChild(card);
     });
 
