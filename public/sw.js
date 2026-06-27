@@ -1,10 +1,11 @@
-const CACHE_NAME = 'antigravity-wms-v4';
+const CACHE_NAME = 'antigravity-wms-v5';
 const ASSETS_DE_CACHE = [
     '/index.html',
     '/src/css/style.css',
     '/src/css/tailwind.generated.css',
     '/src/js/app.js',
     '/src/js/ui.js',
+    '/src/db/local-db.js',
     '/public/manifest.json',
     '/public/icons/icon-192.png',
     '/public/icons/icon-512.png',

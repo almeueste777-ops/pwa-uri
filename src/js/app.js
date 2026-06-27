@@ -1,57 +1,13 @@
-import { STRUCTURA_GESTIUNI, comutaEcran, randeazaLocatii, randeazaProduse, esteUrlImagineValid } from './ui.js';
+// app.js - Creierul aplicației Antigravity
+import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc } from '../db/local-db.js';
+import { comutaEcran, randeazaLocatii, randeazaProduse, esteUrlImagineValid } from './ui.js';
 
-const STORAGE_KEY = 'antigravity-wms-data';
+let dbInstance = null;
+let gestiuneCurenta = null;
+let locatieCurenta = null;
+let produsCurent = null;
+let tipOperatieCurenta = null;
 
-function normalizeazaProdus(produs) {
-    // Compatibilitate cu formatul folosit într-o versiune anterioară a aplicației
-    // (denumire/poza), ca să nu pice ecranul dacă cineva are date vechi salvate.
-    return {
-        id: produs.id,
-        denumire_produs: produs.denumire_produs ?? produs.denumire ?? '',
-        marca: produs.marca ?? '',
-        unitate_masura: produs.unitate_masura ?? 'Buc',
-        poza_url: produs.poza_url ?? produs.poza ?? '',
-    };
-}
-
-function incarcaDate() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-        try {
-            const parsat = JSON.parse(raw);
-            return {
-                produse: Array.isArray(parsat.produse) ? parsat.produse.map(normalizeazaProdus) : [],
-                stocuri: parsat.stocuri && typeof parsat.stocuri === 'object' ? parsat.stocuri : {},
-            };
-        } catch (e) {
-            console.error('Date corupte în localStorage, se reinițializează.', e);
-        }
-    }
-    return {
-        produse: [],
-        stocuri: {},
-    };
-}
-
-function salveazaDate() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(date));
-}
-
-let date = incarcaDate();
-
-const stare = {
-    gestiuneId: null,
-    locatie: null,
-    produs: null,
-    tipOperatie: null,
-};
-
-const elTitlu = document.getElementById('titlu-aplicatie');
-const elBtnInapoi = document.getElementById('btn-inapoi');
-const elStatusRetea = document.getElementById('status-retea');
-
-const elEcranLocatii = document.getElementById('ecran-locatii');
-const elGridProduse = document.getElementById('grid-produse');
 const elCautareRapida = document.getElementById('cautare-rapida');
 const elBtnAdaugaProdusNou = document.getElementById('btn-adauga-produs-nou');
 
@@ -68,146 +24,78 @@ const elInputCantitate = document.getElementById('input-cantitate');
 const elInputExpirare = document.getElementById('input-expirare');
 const elBtnValideaza = document.getElementById('btn-valideaza-miscare');
 
-function cheieStoc(gestiuneId, locatie, produsId) {
-    return `${gestiuneId}|${locatie}|${produsId}`;
-}
-
-function obtineStoc(gestiuneId, locatie, produsId) {
-    return date.stocuri[cheieStoc(gestiuneId, locatie, produsId)] || 0;
-}
-
-function ajusteazaStoc(gestiuneId, locatie, produsId, delta) {
-    const cheie = cheieStoc(gestiuneId, locatie, produsId);
-    const curent = date.stocuri[cheie] || 0;
-    date.stocuri[cheie] = Math.max(0, curent + delta);
-    salveazaDate();
-}
-
-function navigheazaLaGestiuni() {
-    stare.gestiuneId = null;
-    stare.locatie = null;
-    stare.produs = null;
-    comutaEcran('ecran-gestiuni');
-}
-
-function navigheazaLaLocatii(gestiuneId) {
-    stare.gestiuneId = gestiuneId;
-    stare.locatie = null;
-    randeazaLocatii(gestiuneId);
-}
-
-function obtineProduseInstanta(gestiuneId, locatie) {
-    return date.produse.map(produs => ({
-        ...produs,
-        stoc: obtineStoc(gestiuneId, locatie, produs.id),
-    }));
-}
-
-function navigheazaLaProduse(gestiuneId, locatie) {
-    stare.gestiuneId = gestiuneId;
-    stare.locatie = locatie;
-    elCautareRapida.value = '';
-    randeazaProdusePeEcran();
-}
-
-function randeazaProdusePeEcran() {
+async function rerandeazaProduse() {
+    const numeGestiune = document.getElementById('titlu-aplicatie').innerText.split(' → ')[0];
     const filtru = elCautareRapida.value.trim().toLowerCase();
-    const dateGestiune = STRUCTURA_GESTIUNI[stare.gestiuneId];
-    const produseInstanta = obtineProduseInstanta(stare.gestiuneId, stare.locatie).filter(p =>
+
+    const produseInstanta = (await getProduseCuStoc(gestiuneCurenta, locatieCurenta)).filter(p =>
         !filtru || p.denumire_produs.toLowerCase().includes(filtru) || (p.marca || '').toLowerCase().includes(filtru)
     );
-    randeazaProduse(dateGestiune.nume, stare.locatie, produseInstanta, Boolean(filtru));
+
+    randeazaProduse(numeGestiune, locatieCurenta, produseInstanta, Boolean(filtru));
 }
 
-function navigheazaLaOperatie(produsId) {
-    const produs = date.produse.find(p => p.id === produsId);
-    if (!produs) return;
-    stare.produs = produsId;
-    stare.tipOperatie = null;
-    elTitlu.textContent = produs.denumire_produs;
-    elZonaIntroducere.classList.add('hidden');
-    elInputCantitate.value = '';
-    elInputExpirare.value = '';
-    afiseazaDetaliiProdus(produs);
-    comutaEcran('ecran-operatie');
-}
-
-function afiseazaDetaliiProdus(produs) {
+async function afiseazaDetaliiProdus(produs) {
     elDetaliuNume.textContent = produs.denumire_produs;
     elDetaliuMarca.textContent = produs.marca || '';
-    elDetaliuPoza.style.backgroundImage = produs.poza_url && esteUrlImagineValid(produs.poza_url) ? `url('${produs.poza_url}')` : '';
-    const stoc = obtineStoc(stare.gestiuneId, stare.locatie, produs.id);
+    elDetaliuPoza.style.backgroundImage = produs.poza_url && esteUrlImagineValid(produs.poza_url)
+        ? `url('${produs.poza_url}')`
+        : '';
+    const stoc = await getStoc(gestiuneCurenta, locatieCurenta, produs.id);
     elDetaliuStoc.textContent = `Stoc actual: ${stoc} ${produs.unitate_masura}`;
 }
 
-function adaugaProdusNou() {
-    const denumire_produs = prompt('Denumire produs:');
-    if (!denumire_produs || !denumire_produs.trim()) return;
-    const marca = prompt('Marcă (opțional):') || '';
-    const unitate_masura = prompt('Unitate de măsură (ex: Buc, Kg, L):', 'Buc') || 'Buc';
-    let poza_url = (prompt('URL poză (opțional):') || '').trim();
-    if (poza_url && !esteUrlImagineValid(poza_url)) {
-        alert('URL de poză invalid (trebuie să fie http(s) sau imagine), a fost ignorat.');
-        poza_url = '';
-    }
-    const produs = {
-        id: `p${Date.now()}`,
-        denumire_produs: denumire_produs.trim(),
-        marca: marca.trim(),
-        unitate_masura: unitate_masura.trim(),
-        poza_url,
-    };
-    date.produse.push(produs);
-    salveazaDate();
-    randeazaProdusePeEcran();
+async function deschideOperatie(produsId) {
+    const produse = await getProduseCuStoc(gestiuneCurenta, locatieCurenta);
+    const produs = produse.find(p => p.id === produsId);
+    if (!produs) return;
+
+    produsCurent = produs;
+    tipOperatieCurenta = null;
+    document.getElementById('titlu-aplicatie').innerText = produs.denumire_produs;
+    elZonaIntroducere.classList.add('hidden');
+    elInputCantitate.value = '';
+    elInputExpirare.value = '';
+    await afiseazaDetaliiProdus(produs);
+    comutaEcran('ecran-operatie');
 }
 
 function selecteazaOperatie(tip) {
-    stare.tipOperatie = tip;
+    tipOperatieCurenta = tip;
     elZonaIntroducere.classList.remove('hidden');
     elCampExpirare.classList.toggle('hidden', tip !== 'intrare');
     elInputCantitate.focus();
 }
 
-function valideazaMiscare() {
+async function valideazaMiscare() {
     const cantitate = parseFloat(elInputCantitate.value);
     if (!cantitate || cantitate <= 0) {
         alert('Introdu o cantitate validă.');
         return;
     }
-    if (!stare.tipOperatie) {
+    if (!tipOperatieCurenta) {
         alert('Selectează tipul mișcării (Intrare/Ieșire).');
         return;
     }
 
-    const delta = stare.tipOperatie === 'intrare' ? cantitate : -cantitate;
-    const stocActual = obtineStoc(stare.gestiuneId, stare.locatie, stare.produs);
-    if (stare.tipOperatie === 'iesire' && cantitate > stocActual) {
+    const stocActual = await getStoc(gestiuneCurenta, locatieCurenta, produsCurent.id);
+    if (tipOperatieCurenta === 'iesire' && cantitate > stocActual) {
         alert(`Stoc insuficient. Stoc actual: ${stocActual}.`);
         return;
     }
 
-    ajusteazaStoc(stare.gestiuneId, stare.locatie, stare.produs, delta);
+    const delta = tipOperatieCurenta === 'intrare' ? cantitate : -cantitate;
+    await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta);
 
-    const produs = date.produse.find(p => p.id === stare.produs);
-    afiseazaDetaliiProdus(produs);
+    await afiseazaDetaliiProdus(produsCurent);
     elZonaIntroducere.classList.add('hidden');
     elInputCantitate.value = '';
     elInputExpirare.value = '';
-    stare.tipOperatie = null;
-}
-
-function inapoi() {
-    if (!document.getElementById('ecran-operatie').classList.contains('hidden')) {
-        navigheazaLaProduse(stare.gestiuneId, stare.locatie);
-    } else if (!document.getElementById('ecran-produse').classList.contains('hidden')) {
-        navigheazaLaLocatii(stare.gestiuneId);
-    } else if (!document.getElementById('ecran-locatii').classList.contains('hidden')) {
-        navigheazaLaGestiuni();
-    }
+    tipOperatieCurenta = null;
 }
 
 function initializeazaStatusRetea() {
+    const elStatusRetea = document.getElementById('status-retea');
     const actualizeaza = () => {
         const online = navigator.onLine;
         elStatusRetea.classList.toggle('bg-green-500', online);
@@ -219,30 +107,91 @@ function initializeazaStatusRetea() {
     actualizeaza();
 }
 
-document.querySelectorAll('.card-gestiune').forEach(btn => {
-    btn.addEventListener('click', () => navigheazaLaLocatii(btn.dataset.gestiune));
+async function adaugaProdusNou() {
+    const denumire_produs = prompt('Denumire produs:');
+    if (!denumire_produs || !denumire_produs.trim()) return;
+    const marca = prompt('Marcă (opțional):') || '';
+    const unitate_masura = prompt('Unitate de măsură (ex: Buc, Kg, L):', 'Buc') || 'Buc';
+
+    let poza_url = (prompt('URL poză (opțional):') || '').trim();
+    if (poza_url && !esteUrlImagineValid(poza_url)) {
+        alert('URL de poză invalid (trebuie să fie http(s) sau imagine), a fost ignorat.');
+        poza_url = '';
+    }
+
+    await adaugaProdus({
+        id: `p${Date.now()}`,
+        denumire_produs: denumire_produs.trim(),
+        marca: marca.trim(),
+        unitate_masura: unitate_masura.trim(),
+        poza_url,
+    });
+
+    await rerandeazaProduse();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    initializeazaStatusRetea();
+
+    try {
+        // 1. Pornim motorul bazei de date interne (Offline-First)
+        dbInstance = await initLocalDB();
+        console.log('Sistem Antigravity activat. Baza de date locală funcționează perfect.');
+    } catch (error) {
+        console.error('Eroare la aprinderea motorului local:', error);
+    }
+
+    // 2. Click pe Gestiuni (CRPV sau Mănăstire)
+    const butoaneGestiuni = document.querySelectorAll('.card-gestiune');
+    butoaneGestiuni.forEach(buton => {
+        buton.addEventListener('click', (e) => {
+            gestiuneCurenta = e.currentTarget.dataset.gestiune;
+            randeazaLocatii(gestiuneCurenta);
+        });
+    });
+
+    // 3. Click pe o Locație Fizică (ex: 'Beci alimente' sau 'Container frigorific')
+    // Folosim delegare de evenimente pentru că butoanele sunt generate dinamic
+    document.getElementById('ecran-locatii').addEventListener('click', async (e) => {
+        const butonLocatie = e.target.closest('.card-locatie');
+        if (butonLocatie) {
+            locatieCurenta = butonLocatie.dataset.locatie;
+            elCautareRapida.value = '';
+            await rerandeazaProduse();
+        }
+    });
+
+    // 3b. Click pe un Produs -> ecranul de operație (Intrare/Ieșire)
+    // Aceeași delegare de evenimente, cardurile de produs sunt generate dinamic
+    document.getElementById('grid-produse').addEventListener('click', async (e) => {
+        const cardProdus = e.target.closest('.card-produs');
+        if (cardProdus) {
+            await deschideOperatie(cardProdus.dataset.produsId);
+        }
+    });
+
+    // 3c. Căutare rapidă + adăugare produs nou în ghid
+    elCautareRapida.addEventListener('input', rerandeazaProduse);
+    elBtnAdaugaProdusNou.addEventListener('click', adaugaProdusNou);
+
+    // 3d. Operația de intrare/ieșire stoc
+    elOpIntrare.addEventListener('click', () => selecteazaOperatie('intrare'));
+    elOpIesire.addEventListener('click', () => selecteazaOperatie('iesire'));
+    elBtnValideaza.addEventListener('click', valideazaMiscare);
+
+    // 4. Logica butonului "Înapoi" - Navigare fluidă, fără refresh
+    document.getElementById('btn-inapoi').addEventListener('click', () => {
+        const ecranActiv = document.querySelector('section:not(.hidden)').id;
+
+        if (ecranActiv === 'ecran-locatii') {
+            comutaEcran('ecran-gestiuni');
+            gestiuneCurenta = null;
+        } else if (ecranActiv === 'ecran-produse') {
+            comutaEcran('ecran-locatii');
+            locatieCurenta = null;
+        } else if (ecranActiv === 'ecran-operatie') {
+            comutaEcran('ecran-produse');
+            produsCurent = null;
+        }
+    });
 });
-
-// Locațiile sunt generate dinamic de randeazaLocatii(), așa că butoanele lor
-// nu au listener propriu — folosim delegare pe container.
-elEcranLocatii.addEventListener('click', event => {
-    const buton = event.target.closest('.card-locatie');
-    if (!buton) return;
-    navigheazaLaProduse(buton.dataset.gestiuneId, buton.dataset.locatie);
-});
-
-// Cardurile de produse sunt generate dinamic de randeazaProduse(), aceeași delegare.
-elGridProduse.addEventListener('click', event => {
-    const card = event.target.closest('.card-produs');
-    if (!card) return;
-    navigheazaLaOperatie(card.dataset.produsId);
-});
-
-elBtnInapoi.addEventListener('click', inapoi);
-elCautareRapida.addEventListener('input', randeazaProdusePeEcran);
-elBtnAdaugaProdusNou.addEventListener('click', adaugaProdusNou);
-elOpIntrare.addEventListener('click', () => selecteazaOperatie('intrare'));
-elOpIesire.addEventListener('click', () => selecteazaOperatie('iesire'));
-elBtnValideaza.addEventListener('click', valideazaMiscare);
-
-initializeazaStatusRetea();
