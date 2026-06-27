@@ -1,9 +1,10 @@
 // local-db.js - Motorul de date offline-first al aplicației Antigravity (IndexedDB)
 
 const DB_NAME = 'antigravity-wms-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_PRODUSE = 'produse';
 const STORE_STOCURI = 'stocuri';
+const STORE_MISCARI = 'miscari';
 
 const LEGACY_STORAGE_KEY = 'antigravity-wms-data';
 
@@ -20,6 +21,9 @@ function deschideDB() {
             }
             if (!baza.objectStoreNames.contains(STORE_STOCURI)) {
                 baza.createObjectStore(STORE_STOCURI, { keyPath: 'cheie' });
+            }
+            if (!baza.objectStoreNames.contains(STORE_MISCARI)) {
+                baza.createObjectStore(STORE_MISCARI, { keyPath: 'id' });
             }
         };
 
@@ -226,6 +230,112 @@ export async function ruleazaSeedCuratenie(gestiuneId, locatie) {
     }
 
     localStorage.setItem(SEED_CURATENIE_FLAG, '1');
+}
+
+// --- Registru de mișcări (intrări/ieșiri zilnice), separat de inventarul lunar ---
+
+export async function adaugaMiscare(miscare) {
+    const inregistrare = {
+        id: `m${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        ...miscare,
+    };
+    await promisifica(tranzactie(STORE_MISCARI, 'readwrite').put(inregistrare));
+    return inregistrare;
+}
+
+export async function getMiscari(gestiuneId, locatie, produsId) {
+    const toate = await promisifica(tranzactie(STORE_MISCARI, 'readonly').getAll());
+    return toate
+        .filter(m => String(m.gestiuneId) === String(gestiuneId) && m.locatie === locatie && m.produsId === produsId)
+        .sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+}
+
+export async function stergeMiscare(id) {
+    await promisifica(tranzactie(STORE_MISCARI, 'readwrite').delete(id));
+}
+
+// --- Editarea structurii: redenumire/ștergere sectoare și gestiuni, cu migrarea datelor ---
+
+export async function redenumesteLocatie(gestiuneId, vechi, nou) {
+    if (vechi === nou) return;
+    const g = String(gestiuneId);
+
+    const produse = await getProduse();
+    const storeP = tranzactie(STORE_PRODUSE, 'readwrite');
+    for (const p of produse) {
+        if (String(p.gestiuneId) === g && p.locatie === vechi) {
+            await promisifica(storeP.put({ ...p, locatie: nou }));
+        }
+    }
+
+    const stocuri = await promisifica(tranzactie(STORE_STOCURI, 'readonly').getAll());
+    const prefix = `${g}|${vechi}|`;
+    for (const s of stocuri) {
+        if (s.cheie.startsWith(prefix)) {
+            const cheieNoua = `${g}|${nou}|` + s.cheie.slice(prefix.length);
+            await promisifica(tranzactie(STORE_STOCURI, 'readwrite').delete(s.cheie));
+            await promisifica(tranzactie(STORE_STOCURI, 'readwrite').put({ ...s, cheie: cheieNoua }));
+        }
+    }
+
+    const miscari = await promisifica(tranzactie(STORE_MISCARI, 'readonly').getAll());
+    for (const m of miscari) {
+        if (String(m.gestiuneId) === g && m.locatie === vechi) {
+            await promisifica(tranzactie(STORE_MISCARI, 'readwrite').put({ ...m, locatie: nou }));
+        }
+    }
+}
+
+export async function stergeDateLocatie(gestiuneId, locatie) {
+    const g = String(gestiuneId);
+
+    const produse = await getProduse();
+    for (const p of produse) {
+        if (String(p.gestiuneId) === g && p.locatie === locatie) {
+            await promisifica(tranzactie(STORE_PRODUSE, 'readwrite').delete(p.id));
+        }
+    }
+
+    const stocuri = await promisifica(tranzactie(STORE_STOCURI, 'readonly').getAll());
+    const prefix = `${g}|${locatie}|`;
+    for (const s of stocuri) {
+        if (s.cheie.startsWith(prefix)) {
+            await promisifica(tranzactie(STORE_STOCURI, 'readwrite').delete(s.cheie));
+        }
+    }
+
+    const miscari = await promisifica(tranzactie(STORE_MISCARI, 'readonly').getAll());
+    for (const m of miscari) {
+        if (String(m.gestiuneId) === g && m.locatie === locatie) {
+            await promisifica(tranzactie(STORE_MISCARI, 'readwrite').delete(m.id));
+        }
+    }
+}
+
+export async function stergeDateGestiune(gestiuneId) {
+    const g = String(gestiuneId);
+
+    const produse = await getProduse();
+    for (const p of produse) {
+        if (String(p.gestiuneId) === g) {
+            await promisifica(tranzactie(STORE_PRODUSE, 'readwrite').delete(p.id));
+        }
+    }
+
+    const stocuri = await promisifica(tranzactie(STORE_STOCURI, 'readonly').getAll());
+    const prefix = `${g}|`;
+    for (const s of stocuri) {
+        if (s.cheie.startsWith(prefix)) {
+            await promisifica(tranzactie(STORE_STOCURI, 'readwrite').delete(s.cheie));
+        }
+    }
+
+    const miscari = await promisifica(tranzactie(STORE_MISCARI, 'readonly').getAll());
+    for (const m of miscari) {
+        if (String(m.gestiuneId) === g) {
+            await promisifica(tranzactie(STORE_MISCARI, 'readwrite').delete(m.id));
+        }
+    }
 }
 
 export async function getProduseCuStoc(gestiuneId, locatie) {

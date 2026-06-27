@@ -1,6 +1,6 @@
 // app.js - Creierul aplicației Antigravity
-import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus } from '../db/local-db.js';
-import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, STRUCTURA_GESTIUNI } from './ui.js';
+import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc, ruleazaSeedCuratenie, getInregistrareStoc, inregistreazaInventar, seteazaStoc, stergeProdus, adaugaMiscare, getMiscari, redenumesteLocatie, stergeDateLocatie, stergeDateGestiune } from '../db/local-db.js';
+import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid, getStructura, salveazaStructura, getNumeGestiune } from './ui.js';
 
 let dbInstance = null;
 let gestiuneCurenta = null;
@@ -67,6 +67,8 @@ const elBtnSchimbaPoza = document.getElementById('btn-schimba-poza');
 const elInputPozaFisier = document.getElementById('input-poza-fisier');
 const elBtnEditeazaProdus = document.getElementById('btn-editeaza-produs');
 
+const elCorpTabelMiscari = document.getElementById('corp-tabel-miscari');
+
 const elModalEditare = document.getElementById('modal-editare');
 const elEditPoza = document.getElementById('edit-poza');
 const elEditBtnPoza = document.getElementById('edit-btn-poza');
@@ -91,7 +93,7 @@ const elInputExpirare = document.getElementById('input-expirare');
 const elBtnValideaza = document.getElementById('btn-valideaza-miscare');
 
 async function rerandeazaProduse() {
-    const numeGestiune = STRUCTURA_GESTIUNI[gestiuneCurenta].nume;
+    const numeGestiune = getNumeGestiune(gestiuneCurenta);
     const filtru = elCautareRapida.value.trim().toLowerCase();
 
     const produseInstanta = (await getProduseCuStoc(gestiuneCurenta, locatieCurenta)).filter(p =>
@@ -144,6 +146,7 @@ async function deschideOperatie(produsId) {
     elInputCantitate.value = '';
     elInputExpirare.value = '';
     await afiseazaDetaliiProdus(produs);
+    await randeazaTabelMiscari(produs.id);
     comutaEcran('ecran-operatie');
 }
 
@@ -316,13 +319,55 @@ async function valideazaMiscare() {
 
     const delta = tipOperatieCurenta === 'intrare' ? cantitate : -cantitate;
     const operator = rolSelectat ? `${rolSelectat} - ${new Date().toLocaleString('ro-RO')}` : null;
-    await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta, operator);
+    const stocDupa = await ajusteazaStoc(gestiuneCurenta, locatieCurenta, produsCurent.id, delta, operator);
+
+    // Înregistrăm mișcarea în registrul zilnic (diferit de inventarul lunar)
+    await adaugaMiscare({
+        gestiuneId: gestiuneCurenta,
+        locatie: locatieCurenta,
+        produsId: produsCurent.id,
+        tip: tipOperatieCurenta,
+        cantitate,
+        stocInainte: stocActual,
+        stocDupa,
+        data: new Date().toISOString(),
+        rol: rolSelectat,
+        expirare: tipOperatieCurenta === 'intrare' ? (elInputExpirare.value || null) : null,
+    });
 
     await afiseazaDetaliiProdus(produsCurent);
+    await randeazaTabelMiscari(produsCurent.id);
     elZonaIntroducere.classList.add('hidden');
     elInputCantitate.value = '';
     elInputExpirare.value = '';
     tipOperatieCurenta = null;
+}
+
+async function randeazaTabelMiscari(produsId) {
+    if (!elCorpTabelMiscari) return;
+    const miscari = await getMiscari(gestiuneCurenta, locatieCurenta, produsId);
+    elCorpTabelMiscari.innerHTML = '';
+
+    if (miscari.length === 0) {
+        elCorpTabelMiscari.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-3">Nicio mișcare încă.</td></tr>';
+        return;
+    }
+
+    miscari.forEach(m => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-t border-gray-300/40';
+        const data = new Date(m.data);
+        const dataText = isNaN(data) ? (m.data || '') : data.toLocaleDateString('ro-RO');
+        const esteIntrare = m.tip === 'intrare';
+        tr.innerHTML = `
+            <td class="py-1.5 pr-2 whitespace-nowrap">${dataText}</td>
+            <td class="py-1.5 pr-2 font-semibold ${esteIntrare ? 'text-green-600' : 'text-rose-500'}">${esteIntrare ? 'Intrare' : 'Ieșire'}</td>
+            <td class="py-1.5 pr-2 text-right">${esteIntrare ? '+' : '-'}${m.cantitate}</td>
+            <td class="py-1.5 pr-2 text-right text-gray-500">${m.stocInainte}</td>
+            <td class="py-1.5 text-right text-gray-500">${m.stocDupa}</td>
+        `;
+        elCorpTabelMiscari.appendChild(tr);
+    });
 }
 
 function afiseazaUtilizatorCurent(utilizator) {
@@ -406,6 +451,82 @@ async function adaugaProdusNou() {
     await rerandeazaProduse();
 }
 
+// --- Editarea structurii (gestiuni și sectoare) direct din aplicație ---
+
+function reincarcaGestiuni() {
+    randeazaEcraneGestiuni(id => poateAccesaGestiune(accesCurent, id));
+}
+function reincarcaLocatii() {
+    randeazaLocatii(gestiuneCurenta, locatie => poateAccesaLocatie(accesCurent, gestiuneCurenta, locatie));
+}
+
+async function editeazaGestiune(id) {
+    const structura = getStructura();
+    const g = structura[id];
+    if (!g) return;
+    const optiune = prompt(`Editează „${g.nume}”:\n• scrie un nume nou pentru redenumire\n• scrie STERGE ca să elimini gestiunea cu tot ce conține`, g.nume);
+    if (optiune === null) return;
+    const val = optiune.trim();
+    if (!val) return;
+    if (val.toUpperCase() === 'STERGE') {
+        if (!confirm(`Sigur ștergi gestiunea „${g.nume}” și toate datele ei?`)) return;
+        delete structura[id];
+        salveazaStructura(structura);
+        await stergeDateGestiune(id);
+    } else {
+        g.nume = val;
+        salveazaStructura(structura);
+    }
+    reincarcaGestiuni();
+}
+
+async function adaugaGestiune() {
+    const nume = (prompt('Nume gestiune nouă:') || '').trim();
+    if (!nume) return;
+    const structura = getStructura();
+    const ids = Object.keys(structura).map(Number).filter(n => !isNaN(n));
+    const idNou = String((ids.length ? Math.max(...ids) : 0) + 1);
+    structura[idNou] = { nume, icon: 'generic', locatii: [] };
+    salveazaStructura(structura);
+    reincarcaGestiuni();
+}
+
+async function editeazaLocatie(gestiuneId, nume) {
+    const structura = getStructura();
+    const g = structura[gestiuneId];
+    if (!g) return;
+    const idx = g.locatii.findIndex(l => l.nume === nume);
+    if (idx < 0) return;
+    const optiune = prompt(`Editează sectorul „${nume}”:\n• scrie un nume nou pentru redenumire\n• scrie STERGE ca să-l elimini cu tot ce conține`, nume);
+    if (optiune === null) return;
+    const val = optiune.trim();
+    if (!val) return;
+    if (val.toUpperCase() === 'STERGE') {
+        if (!confirm(`Sigur ștergi sectorul „${nume}” și toate produsele lui?`)) return;
+        g.locatii.splice(idx, 1);
+        salveazaStructura(structura);
+        await stergeDateLocatie(gestiuneId, nume);
+    } else if (val !== nume) {
+        if (g.locatii.some(l => l.nume === val)) { alert('Există deja un sector cu acest nume.'); return; }
+        g.locatii[idx].nume = val;
+        salveazaStructura(structura);
+        await redenumesteLocatie(gestiuneId, nume, val);
+    }
+    reincarcaLocatii();
+}
+
+async function adaugaLocatie(gestiuneId) {
+    const nume = (prompt('Nume sector nou:') || '').trim();
+    if (!nume) return;
+    const structura = getStructura();
+    const g = structura[gestiuneId];
+    if (!g) return;
+    if (g.locatii.some(l => l.nume === nume)) { alert('Există deja un sector cu acest nume.'); return; }
+    g.locatii.push({ nume, icon: 'generic' });
+    salveazaStructura(structura);
+    reincarcaLocatii();
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initializeazaStatusRetea();
 
@@ -439,7 +560,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 2. Click pe o gestiune (butoanele se generează în aplicaAcces, filtrate pe acces)
-    document.getElementById('ecran-gestiuni').addEventListener('click', (e) => {
+    document.getElementById('ecran-gestiuni').addEventListener('click', async (e) => {
+        const btnEditG = e.target.closest('.btn-edit-gestiune');
+        if (btnEditG) { e.stopPropagation(); await editeazaGestiune(btnEditG.dataset.gestiune); return; }
+        if (e.target.closest('#btn-adauga-gestiune')) { await adaugaGestiune(); return; }
         const cardGestiune = e.target.closest('.card-gestiune');
         if (cardGestiune) {
             gestiuneCurenta = cardGestiune.dataset.gestiune;
@@ -450,6 +574,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. Click pe o Locație Fizică (ex: 'Beci alimente' sau 'Container frigorific')
     // Folosim delegare de evenimente pentru că butoanele sunt generate dinamic
     document.getElementById('ecran-locatii').addEventListener('click', async (e) => {
+        const btnEditL = e.target.closest('.btn-edit-locatie');
+        if (btnEditL) { e.stopPropagation(); await editeazaLocatie(btnEditL.dataset.gestiuneId, btnEditL.dataset.locatie); return; }
+        const btnAddL = e.target.closest('#btn-adauga-locatie');
+        if (btnAddL) { await adaugaLocatie(btnAddL.dataset.gestiuneId); return; }
         const butonLocatie = e.target.closest('.card-locatie');
         if (butonLocatie) {
             locatieCurenta = butonLocatie.dataset.locatie;

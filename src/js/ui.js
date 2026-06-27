@@ -8,37 +8,62 @@ const iconShapes = {
     generic: `<svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg>`
 };
 
-// Baza de date cu locațiile exacte ale celor două gestiuni, fiecare cu pictogramă proprie
-const STRUCTURA_GESTIUNI = {
+// Structura implicită a gestiunilor. Pictogramele sunt referite prin cheie (text),
+// ca structura să poată fi salvată/editată de utilizator în localStorage.
+const DEFAULT_STRUCTURA = {
     1: {
         nume: 'MĂNĂSTIRE',
-        icon: iconShapes.manastire,
+        icon: 'manastire',
         locatii: [
-            { nume: 'Hala alimente', icon: iconShapes.alimente },
-            { nume: 'Produse de curățenie', icon: iconShapes.generic },
-            { nume: 'Lăzi frigorifice', icon: iconShapes.frig },
-            { nume: 'Container frigorific', icon: iconShapes.frig },
-            { nume: 'Depozit haine', icon: iconShapes.generic },
-            { nume: 'Magazin bisericesc', icon: iconShapes.generic },
-            { nume: 'Veșmântărie', icon: iconShapes.generic },
-            { nume: 'Magazie scule', icon: iconShapes.generic }
+            { nume: 'Hala alimente', icon: 'alimente' },
+            { nume: 'Produse de curățenie', icon: 'generic' },
+            { nume: 'Lăzi frigorifice', icon: 'frig' },
+            { nume: 'Container frigorific', icon: 'frig' },
+            { nume: 'Depozit haine', icon: 'generic' },
+            { nume: 'Magazin bisericesc', icon: 'generic' },
+            { nume: 'Veșmântărie', icon: 'generic' },
+            { nume: 'Magazie scule', icon: 'generic' }
         ]
     },
     2: {
         nume: 'CRPV',
-        icon: iconShapes.crpv,
+        icon: 'crpv',
         locatii: [
-            { nume: 'Magazie mică', icon: iconShapes.generic },
-            { nume: 'Magazie Dulciuri', icon: iconShapes.alimente },
-            { nume: 'Lăzi frigorifice', icon: iconShapes.frig },
-            { nume: 'Cameră de frig', icon: iconShapes.frig },
-            { nume: 'Medicamente', icon: iconShapes.medicamente },
-            { nume: 'Beci alimente', icon: iconShapes.alimente }
+            { nume: 'Magazie mică', icon: 'generic' },
+            { nume: 'Magazie Dulciuri', icon: 'alimente' },
+            { nume: 'Lăzi frigorifice', icon: 'frig' },
+            { nume: 'Cameră de frig', icon: 'frig' },
+            { nume: 'Medicamente', icon: 'medicamente' },
+            { nume: 'Beci alimente', icon: 'alimente' }
         ]
     }
 };
 
-export { STRUCTURA_GESTIUNI };
+const STRUCTURA_KEY = 'antigravity-structura-v1';
+
+function iconPentru(cheie) {
+    return iconShapes[cheie] || iconShapes.generic;
+}
+
+// Structura editabilă, persistată în localStorage. La prima rulare pornește din implicit.
+export function getStructura() {
+    const raw = localStorage.getItem(STRUCTURA_KEY);
+    if (raw) {
+        try { return JSON.parse(raw); } catch (e) { /* cade pe implicit */ }
+    }
+    const clona = JSON.parse(JSON.stringify(DEFAULT_STRUCTURA));
+    localStorage.setItem(STRUCTURA_KEY, JSON.stringify(clona));
+    return clona;
+}
+
+export function salveazaStructura(structura) {
+    localStorage.setItem(STRUCTURA_KEY, JSON.stringify(structura));
+}
+
+export function getNumeGestiune(gestiuneId) {
+    const g = getStructura()[gestiuneId];
+    return g ? g.nume : '';
+}
 
 // Imagine de rezervă inline (SVG, fără apel de rețea) pentru produsele fără poză.
 const IMAGINE_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
@@ -82,16 +107,20 @@ export function randeazaEcraneGestiuni(poateAccesaGestiune = () => true) {
     if (!container) return;
     container.innerHTML = '';
 
-    [1, 2].forEach(id => {
+    const structura = getStructura();
+    Object.keys(structura).forEach(id => {
         if (!poateAccesaGestiune(String(id))) return;
-        const gestiune = STRUCTURA_GESTIUNI[id];
+        const gestiune = structura[id];
         const card = document.createElement('div');
-        card.className = 'card-gestiune neu-card p-6 flex items-center justify-between cursor-pointer';
+        card.className = 'card-gestiune neu-card p-6 flex items-center justify-between cursor-pointer relative';
         card.dataset.gestiune = id;
 
         card.innerHTML = `
+            <button class="btn-edit-gestiune neu-btn-circular w-8 h-8 flex items-center justify-center text-gray-400 absolute top-2 right-2" title="Editează gestiunea" data-gestiune="${id}">
+                <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            </button>
             <div class="flex items-center space-x-5">
-                <div class="neu-icon-badge w-16 h-16">${gestiune.icon}</div>
+                <div class="neu-icon-badge w-16 h-16">${iconPentru(gestiune.icon)}</div>
                 <span class="text-2xl font-bold tracking-wide">${gestiune.nume}</span>
             </div>
             <div class="neu-btn-circular w-10 h-10 flex items-center justify-center text-gray-400">
@@ -101,12 +130,19 @@ export function randeazaEcraneGestiuni(poateAccesaGestiune = () => true) {
 
         container.appendChild(card);
     });
+
+    const btnAdauga = document.createElement('button');
+    btnAdauga.id = 'btn-adauga-gestiune';
+    btnAdauga.className = 'neu-card text-gray-500 py-4 font-semibold transition sm:col-span-2';
+    btnAdauga.textContent = '+ Adaugă Gestiune';
+    container.appendChild(btnAdauga);
 }
 
 // Generează butoanele pentru locațiile fizice în funcție de gestiunea aleasă
 export function randeazaLocatii(gestiuneId, poateAccesaLocatie = () => true) {
     const container = document.getElementById('ecran-locatii');
-    const dateGestiune = STRUCTURA_GESTIUNI[gestiuneId];
+    const dateGestiune = getStructura()[gestiuneId];
+    if (!dateGestiune) return;
 
     document.getElementById('titlu-aplicatie').innerText = dateGestiune.nume;
     container.innerHTML = '';
@@ -114,19 +150,29 @@ export function randeazaLocatii(gestiuneId, poateAccesaLocatie = () => true) {
     dateGestiune.locatii.filter(l => poateAccesaLocatie(l.nume)).forEach((locatie, index) => {
         const card = document.createElement('div');
         card.style.animationDelay = `${index * 0.05}s`;
-        card.className = 'card-locatie neu-card p-4 flex items-center cursor-pointer slide-up-fade';
+        card.className = 'card-locatie neu-card p-4 flex items-center cursor-pointer slide-up-fade relative';
         card.dataset.locatie = locatie.nume;
         card.dataset.gestiuneId = gestiuneId;
 
         card.innerHTML = `
-            <div class="neu-icon-badge w-12 h-12 mr-4 flex-shrink-0">${locatie.icon}</div>
+            <div class="neu-icon-badge w-12 h-12 mr-4 flex-shrink-0">${iconPentru(locatie.icon)}</div>
             <div class="flex-1">
                 <h3 class="text-lg font-bold">${locatie.nume}</h3>
             </div>
+            <button class="btn-edit-locatie neu-btn-circular w-8 h-8 flex items-center justify-center text-gray-400 flex-shrink-0" title="Editează sectorul" data-locatie="${locatie.nume}" data-gestiune-id="${gestiuneId}">
+                <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            </button>
         `;
 
         container.appendChild(card);
     });
+
+    const btnAdauga = document.createElement('button');
+    btnAdauga.id = 'btn-adauga-locatie';
+    btnAdauga.className = 'neu-card text-gray-500 py-4 font-semibold transition sm:col-span-2 lg:col-span-3 xl:col-span-4';
+    btnAdauga.dataset.gestiuneId = gestiuneId;
+    btnAdauga.textContent = '+ Adaugă Sector';
+    container.appendChild(btnAdauga);
 
     comutaEcran('ecran-locatii');
 }
