@@ -1,22 +1,104 @@
-/* Stiluri custom pentru efectul Antigravity (fără fricțiune pe mobil) */
+/* Stiluri Neumorfice pentru Antigravity WMS (fără fricțiune pe mobil) */
 /* Tailwind este vendorizat local (vezi tailwind.generated.css, generat din
    tailwind.css cu `npm run build:css`) ca aplicația să rămână funcțională
    offline / fără acces la CDN-uri externe. */
 @import url('./tailwind.generated.css');
 
+:root {
+    --bg-neu: #e0e5ec;
+    --shadow-light: #ffffff;
+    --shadow-dark: #a3b1c6;
+    --text-main: #4a5568;
+    --text-accent: #2d3748;
+    --accent-color: #ff6b6b;
+}
+
 body {
+    background-color: var(--bg-neu);
+    color: var(--text-main);
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow-x: hidden;
 }
 
-/* Efect de apăsare fizică pe butoane (tactile feedback) */
-.card-gestiune, .card-locatie, .card-produs {
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
+header {
+    background-color: var(--bg-neu);
+    box-shadow: 0 10px 15px -3px rgba(163, 177, 198, 0.3);
 }
 
-.card-gestiune:active, .card-locatie:active, .card-produs:active {
+h1, h2, h3 {
+    color: var(--text-accent);
+}
+
+/* Efectul Neumorfic Principal (Ieșit în relief) */
+.neu-card {
+    background-color: var(--bg-neu);
+    border-radius: 20px;
+    box-shadow: 9px 9px 16px var(--shadow-dark),
+               -9px -9px 16px var(--shadow-light);
+    transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Efectul de Apăsare (Împins înăuntru) */
+.neu-card:active {
+    box-shadow: inset 6px 6px 10px var(--shadow-dark),
+                inset -6px -6px 10px var(--shadow-light);
     transform: scale(0.96);
-    filter: brightness(0.9);
+}
+
+/* Container pentru pictograme (Badge ieșit în relief) */
+.neu-icon-badge {
+    background-color: var(--bg-neu);
+    border-radius: 50%;
+    box-shadow: 5px 5px 10px var(--shadow-dark),
+               -5px -5px 10px var(--shadow-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Buton de acțiune special (rotund) */
+.neu-btn-circular {
+    background-color: var(--bg-neu);
+    border-radius: 50%;
+    box-shadow: 7px 7px 14px var(--shadow-dark),
+               -7px -7px 14px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+.neu-btn-circular:active {
+    box-shadow: inset 5px 5px 10px var(--shadow-dark),
+                inset -5px -5px 10px var(--shadow-light);
+}
+
+/* Animație de intrare lină, glisare de jos */
+.slide-up-fade {
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUp {
+    0% { opacity: 0; transform: translateY(30px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Input-uri Neumorfice (scobite) */
+input {
+    background-color: var(--bg-neu) !important;
+    box-shadow: inset 5px 5px 10px var(--shadow-dark),
+                inset -5px -5px 10px var(--shadow-light) !important;
+    border: none !important;
+    color: var(--text-accent) !important;
+}
+input:focus {
+    outline: none;
+    box-shadow: inset 7px 7px 14px var(--shadow-dark),
+                inset -7px -7px 14px var(--shadow-light) !important;
+}
+
+/* Previne zoom-ul automat enervant pe iPhone */
+input, select, button {
+    font-size: 16px !important;
 }
 
 /* Scroll fluid pentru liste lungi de produse */
@@ -29,60 +111,4 @@ body {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-}
-
-/* Input-uri optimizate pentru degete mari */
-input, select, button {
-    font-size: 16px !important; /* Previne zoom-ul automat enervant pe iPhone */
-}
-
-/* Animație simplă de tranziție între ecrane */
-.fade-in {
-    animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* =========================================
-   TEMATICA SPECIFICĂ PE GESTIUNI
-   ========================================= */
-
-/* TEMA MĂNĂSTIRE: Linii moi, butoane ca niște pietre prețioase, eleganță */
-body.tema-manastire header {
-    background: linear-gradient(to right, #1f2937, #111827);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-body.tema-manastire .card-locatie {
-    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-    letter-spacing: 0.5px;
-}
-
-body.tema-manastire .card-locatie:active {
-    transform: scale(0.92) translateY(4px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-}
-
-/* TEMA CRPV: Aspect industrial, margini dure, utilitarist, digital */
-body.tema-crpv header {
-    background: #0f172a;
-    border-bottom: 2px solid #38bdf8;
-    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.1);
-}
-
-body.tema-crpv .card-locatie {
-    transition: all 0.1s ease-out;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-size: 0.9rem;
-}
-
-body.tema-crpv .card-locatie:active {
-    transform: scale(0.97);
-    filter: brightness(1.2);
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
 }

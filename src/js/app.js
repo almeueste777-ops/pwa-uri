@@ -1,6 +1,6 @@
 // app.js - Creierul aplicației Antigravity
 import { initLocalDB, getProduseCuStoc, adaugaProdus, getStoc, ajusteazaStoc } from '../db/local-db.js';
-import { comutaEcran, randeazaLocatii, randeazaProduse, esteUrlImagineValid } from './ui.js';
+import { comutaEcran, randeazaLocatii, randeazaProduse, randeazaEcraneGestiuni, esteUrlImagineValid } from './ui.js';
 
 let dbInstance = null;
 let gestiuneCurenta = null;
@@ -141,13 +141,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Eroare la aprinderea motorului local:', error);
     }
 
-    // 2. Click pe Gestiuni (CRPV sau Mănăstire)
-    const butoaneGestiuni = document.querySelectorAll('.card-gestiune');
-    butoaneGestiuni.forEach(buton => {
-        buton.addEventListener('click', (e) => {
-            gestiuneCurenta = e.currentTarget.dataset.gestiune;
+    // 2. Desenăm cardurile de gestiune (CRPV / Mănăstire) și legăm click-urile prin delegare,
+    // pentru că butoanele sunt generate dinamic în ui.js
+    randeazaEcraneGestiuni();
+    document.getElementById('ecran-gestiuni').addEventListener('click', (e) => {
+        const cardGestiune = e.target.closest('.card-gestiune');
+        if (cardGestiune) {
+            gestiuneCurenta = cardGestiune.dataset.gestiune;
             randeazaLocatii(gestiuneCurenta);
-        });
+        }
     });
 
     // 3. Click pe o Locație Fizică (ex: 'Beci alimente' sau 'Container frigorific')
