@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Local databases (e.g. SQLite MCP)
+*.db
+*.sqlite
+*.sqlite3
+
+# Build output
+dist/
+build/
+
+# Logs & env
+*.log
+.env
+.env.local
+
+# OS / editor
+.DS_Store
